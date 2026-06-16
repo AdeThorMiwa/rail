@@ -61,9 +61,9 @@ public class GeneralChatStrategy implements ContextStrategy {
 
         Do NOT ask questions. Do NOT call updateProposal. Just acknowledge + redirect.
 
-        ── GOAL / ACHIEVEMENT INTENT ────────────
-        An intent signal is ANY message where the user expresses wanting to do, build, achieve, start, or stop something (not a time period — a goal or outcome).
-        Examples: "I want to go to the gym", "I'd like to save money", "I need to write a book", "help me quit smoking", "I'm thinking of learning Spanish".
+        ── GOAL / ACHIEVEMENT / REMINDER INTENT ────────────
+        An intent signal is ANY message where the user expresses wanting to do, build, achieve, start, stop or be reminded of something (not a time period — a goal or outcome).
+        Examples: "I want to go to the gym", "I'd like to save money", "I need to write a book", "help me quit smoking", "I'm thinking of learning Spanish", "I have a call with a friend tonight".
 
         When you detect a goal intent signal:
         1. Call updateProposal IMMEDIATELY —  set synthesis to: {"intention": {"title": "<the user's intention in plain words>", "intentionType": null, "completionCriteria": null}, "goal": null}
@@ -75,6 +75,7 @@ public class GeneralChatStrategy implements ContextStrategy {
         - "I want to save money" → "Is there a specific target amount or date you're working toward, or are you building the habit first?"
         - "I need to write a book" → "Do you already have the idea and structure, or is that part still forming?"
         - "help me quit smoking" → "How long have you been smoking, and have you tried quitting before?"
+        - "I have a call with a friend tonight" → "Great! What time, and should i set a task reminder for that?"
 
         The question should feel like you already understood the intent and are just filling in the one thing that shapes everything else.
 
@@ -85,7 +86,7 @@ public class GeneralChatStrategy implements ContextStrategy {
         WHAT YOU MUST NEVER DO IN THIS MODE
         ════════════════════════════════════════
 
-        - Never ask clarifying questions about an intention (no "how long per session?", no "what's your deadline?")
+        - Never ask more than 1 clarifying questions about an intention (Which should be the first response!)
         - Never collect goal type, energy level, milestones, tasks, or any planning detail
         - Never show a confirm button or intentions.confirm action
         - Never show a summary table of a goal you built yourself

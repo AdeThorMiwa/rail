@@ -2,6 +2,7 @@ package com.rail.api.repository;
 
 import com.rail.api.entity.DailySchedule;
 import com.rail.api.entity.DailyScheduleEntry;
+import com.rail.api.entity.Goal;
 import com.rail.api.entity.User;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -36,5 +37,21 @@ public interface DailyScheduleEntryRepository
         @Param("user") User user,
         @Param("today") LocalDate today,
         @Param("now") LocalTime now
+    );
+
+    @Query("""
+        SELECT e FROM DailyScheduleEntry e
+        JOIN e.task t
+        JOIN e.dailySchedule ds
+        WHERE ds.user = :user
+          AND ds.scheduledDate = :date
+          AND t.goal = :goal
+          AND e.entryType = 'TASK'
+        ORDER BY e.startTime
+        """)
+    List<DailyScheduleEntry> findTaskEntriesByUserAndDateAndGoal(
+        @Param("user") User user,
+        @Param("date") LocalDate date,
+        @Param("goal") Goal goal
     );
 }

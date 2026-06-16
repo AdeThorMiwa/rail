@@ -119,7 +119,7 @@ class GoalListItem {
 
   factory GoalListItem.fromJson(Map<String, dynamic> j) {
     final milestones = (j['milestones'] as List<dynamic>?) ?? [];
-    final tasks = (j['tasks'] as List<dynamic>?) ?? [];
+    final tasks = (j['todaysTasks'] as List<dynamic>?) ?? [];
     final done = milestones.where((m) => (m as Map)['status'] == 'DONE').length;
     final pending = tasks.where((t) => (t as Map)['status'] != 'DONE').length;
 
@@ -259,7 +259,7 @@ class GoalDetail {
       : milestones.where((m) => m.isDone).length / milestones.length;
 
   factory GoalDetail.fromJson(Map<String, dynamic> j) {
-    final allTasks = (j['tasks'] as List<dynamic>? ?? [])
+    final allTasks = (j['todaysTasks'] as List<dynamic>? ?? [])
         .map((t) => TaskDetail.fromJson(t as Map<String, dynamic>))
         .toList();
 

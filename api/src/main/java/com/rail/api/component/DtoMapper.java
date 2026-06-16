@@ -74,7 +74,7 @@ public class DtoMapper {
         GoalTargetDto target,
         HabitStatsDto habitStats,
         List<Milestone> milestones,
-        List<Task> tasks
+        List<Task> todaysTasks
     ) {
         return new GoalDto(
             goal.getPid(),
@@ -89,7 +89,7 @@ public class DtoMapper {
             target,
             habitStats,
             milestones.stream().map(this::toMilestoneDto).toList(),
-            tasks.stream().map(this::toTaskDto).toList()
+            todaysTasks.stream().map(this::toTaskDto).toList()
         );
     }
 

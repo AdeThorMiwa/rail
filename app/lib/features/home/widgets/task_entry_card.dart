@@ -21,7 +21,9 @@ class TaskEntryCard extends ConsumerStatefulWidget {
 class _TaskEntryCardState extends ConsumerState<TaskEntryCard> {
   void _openTaskChat() {
     final task = widget.entry.task!;
-    context.push('/chat/TASK/${task.pid}?title=${Uri.encodeComponent(task.title)}');
+    context.push(
+      '/chat/TASK/${task.pid}?title=${Uri.encodeComponent(task.title)}',
+    );
   }
 
   Future<void> _showCompleteSheet() async {
@@ -42,11 +44,11 @@ class _TaskEntryCardState extends ConsumerState<TaskEntryCard> {
         targetUnit: task.targetUnit,
         onSubmit: ({required completionType, completionNote, actualValue}) =>
             repo.completeEntry(
-          entry.pid,
-          completionType: completionType,
-          completionNote: completionNote,
-          actualValue: actualValue,
-        ),
+              entry.pid,
+              completionType: completionType,
+              completionNote: completionNote,
+              actualValue: actualValue,
+            ),
       ),
     );
     if (result == true && mounted) {
@@ -120,7 +122,13 @@ class _TaskEntryCardState extends ConsumerState<TaskEntryCard> {
           borderRadius: BorderRadius.circular(8),
           boxShadow: isInactive
               ? []
-              : [BoxShadow(color: shadow, blurRadius: 28, offset: const Offset(0, 10))],
+              : [
+                  BoxShadow(
+                    color: shadow,
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
         ),
         child: Material(
           color: Colors.transparent,
@@ -139,7 +147,10 @@ class _TaskEntryCardState extends ConsumerState<TaskEntryCard> {
                       if (task.goalTitle != null)
                         Flexible(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.22),
                               borderRadius: BorderRadius.circular(6),
@@ -159,7 +170,10 @@ class _TaskEntryCardState extends ConsumerState<TaskEntryCard> {
                       if (isNow && !isInactive) ...[
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.28),
                             borderRadius: BorderRadius.circular(6),
@@ -203,7 +217,9 @@ class _TaskEntryCardState extends ConsumerState<TaskEntryCard> {
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                       height: 1.3,
-                      decoration: isInactive ? TextDecoration.lineThrough : null,
+                      decoration: isInactive
+                          ? TextDecoration.lineThrough
+                          : null,
                       decorationColor: Colors.white,
                     ),
                   ),
@@ -249,40 +265,40 @@ class _TaskEntryCardState extends ConsumerState<TaskEntryCard> {
   }
 
   LinearGradient _gradientFor(String? goalType) => switch (goalType) {
-        'HABIT'      => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF3A8FEF), Color(0xFF7BB3FF)],
-          ),
-        'ABSTINENCE' => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF2EA69F), Color(0xFF5BBFB8)],
-          ),
-        'TASK'       => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF9061E0), Color(0xFFBC98FF)],
-          ),
-        'QUANTIFIED' => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0E9FC8), Color(0xFF38BEF5)],
-          ),
-        _            => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF6355EE), Color(0xFF9B8FFF)],
-          ),
-      };
+    'HABIT' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF3A8FEF), Color(0xFF7BB3FF)],
+    ),
+    'ABSTINENCE' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF2EA69F), Color(0xFF5BBFB8)],
+    ),
+    'TASK' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF9061E0), Color(0xFFBC98FF)],
+    ),
+    'QUANTIFIED' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF0E9FC8), Color(0xFF38BEF5)],
+    ),
+    _ => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF6355EE), Color(0xFF9B8FFF)],
+    ),
+  };
 
   Color _shadowFor(String? goalType) => switch (goalType) {
-        'HABIT'      => const Color(0xFF3A8FEF).withValues(alpha: 0.38),
-        'ABSTINENCE' => const Color(0xFF2EA69F).withValues(alpha: 0.35),
-        'TASK'       => const Color(0xFF9061E0).withValues(alpha: 0.38),
-        'QUANTIFIED' => const Color(0xFF0E9FC8).withValues(alpha: 0.35),
-        _            => const Color(0xFF6355EE).withValues(alpha: 0.42),
-      };
+    'HABIT' => const Color(0xFF3A8FEF).withValues(alpha: 0.38),
+    'ABSTINENCE' => const Color(0xFF2EA69F).withValues(alpha: 0.35),
+    'TASK' => const Color(0xFF9061E0).withValues(alpha: 0.38),
+    'QUANTIFIED' => const Color(0xFF0E9FC8).withValues(alpha: 0.35),
+    _ => const Color(0xFF6355EE).withValues(alpha: 0.42),
+  };
 
   bool _isNow(TimeOfDay start, TimeOfDay end, TimeOfDay now) {
     final startMins = start.hour * 60 + start.minute;

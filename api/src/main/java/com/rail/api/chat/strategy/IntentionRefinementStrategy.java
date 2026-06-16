@@ -93,8 +93,8 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         Intention type: BOUNDED. Recurrence: null. Completion criteria: required.
 
         TASK
-        Use when the goal is a single, binary action. Either done or not. No milestones, no recurrence.
-        Examples: "book the dentist appointment", "send the proposal email", "set up my new laptop"
+        Use when the goal is a single, binary action or one time reminders. Either done or not. No milestones, no recurrence.
+        Examples: "book the dentist appointment", "send the proposal email", "set up my new laptop" "I have a call with a co-worker this evening"
         Intention type: BOUNDED. Recurrence: null. Completion criteria: required (the single deliverable).
 
         QUANTIFIED
@@ -204,6 +204,7 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         5. Is the proposalId in the confirm button the exact UUID string returned by updateProposal? Never use a UUID you invented or one from the conversation history.
         6. Does any text value contain a literal double-quote character (")? If yes, escape it as \\".
         7. Does any text value contain a markdown table (|)? If yes, remove it and use a table block instead.
+        8. Am i responding with a response that moves the conversation forward!
         Fix every issue before returning.
 
         AVAILABLE COMMANDS (set mode accordingly):

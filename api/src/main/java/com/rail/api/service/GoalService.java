@@ -15,6 +15,7 @@ import com.rail.api.entity.TaskOccurrence;
 import com.rail.api.entity.TaskStatus;
 import com.rail.api.entity.User;
 import com.rail.api.event.ScheduleChangeEvent;
+import com.rail.api.repository.DailyScheduleEntryRepository;
 import com.rail.api.repository.DailyScheduleRepository;
 import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.GoalTargetRepository;
@@ -46,6 +47,7 @@ public class GoalService {
     private final TaskTargetRepository taskTargetRepository;
     private final TaskOccurrenceRepository occurrenceRepository;
     private final DailyScheduleRepository dailyScheduleRepository;
+    private final DailyScheduleEntryRepository dailyScheduleEntryRepository;
     private final ScheduleChangeRepository scheduleChangeRepository;
     private final UserSchedulingProfileRepository profileRepository;
     private final StreakService streakService;
@@ -54,38 +56,33 @@ public class GoalService {
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
-    public GoalDto get(User user, UUID goalPid) {
-        var goal = goalRepository
-            .findByPidAndOwner(goalPid, user)
-            .orElseThrow(() ->
-                new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Goal not found"
-                )
-            );
+    public List<GoalDto> list(User user) {
+        return goalRepository.findByOwnerAndStatus(user, com.rail.api.entity.GoalStatus.ACTIVE)
+            .stream()
+            .map(goal -> toDto(goal, user))
+            .toList();
+    }
+
+    private GoalDto toDto(Goal goal, User user) {
         var milestones = milestoneRepository.findByGoalOrderByPosition(goal);
-        // For recurring goals the template task stays PENDING forever — PENDING only is correct.
-        // For PROJECT/TASK/QUANTIFIED we need all tasks so milestone completion shows accurately.
-        var tasks = (goal.getType() == GoalType.HABIT || goal.getType() == GoalType.ABSTINENCE)
-            ? taskRepository.findByGoalAndStatus(goal, TaskStatus.PENDING)
-            : taskRepository.findByGoal(goal);
+        var today = profileRepository.findByUser(user)
+            .map(p -> LocalDate.now(ZoneId.of(p.getTimezone())))
+            .orElseGet(LocalDate::now);
+        var todaysTasks = dailyScheduleEntryRepository
+            .findTaskEntriesByUserAndDateAndGoal(user, today, goal)
+            .stream()
+            .map(e -> e.getTask())
+            .toList();
         var target = goalTargetRepository
             .findByGoal(goal)
             .map(gt -> {
-                var current =
-                    taskTargetRepository.sumActualValueByGoalAndTaskStatus(
-                        goal,
-                        TaskStatus.DONE
-                    );
-                return new GoalTargetDto(
-                    gt.getTargetValue(),
-                    current,
-                    gt.getUnit()
+                var current = taskTargetRepository.sumActualValueByGoalAndTaskStatus(
+                    goal, TaskStatus.DONE
                 );
+                return new GoalTargetDto(gt.getTargetValue(), current, gt.getUnit());
             })
             .orElse(null);
-        var habitStats = (goal.getType() == GoalType.HABIT ||
-            goal.getType() == GoalType.ABSTINENCE)
+        var habitStats = (goal.getType() == GoalType.HABIT || goal.getType() == GoalType.ABSTINENCE)
             ? streakService.computeStats(goal)
             : null;
         return dtoMapper.toGoalDto(
@@ -94,8 +91,18 @@ public class GoalService {
             target,
             habitStats,
             milestones,
-            tasks
+            todaysTasks
         );
+    }
+
+    @Transactional(readOnly = true)
+    public GoalDto get(User user, UUID goalPid) {
+        var goal = goalRepository
+            .findByPidAndOwner(goalPid, user)
+            .orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found")
+            );
+        return toDto(goal, user);
     }
 
     @Transactional

@@ -138,7 +138,11 @@ class NowTaskCard extends ConsumerWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.chevron_left_rounded, size: 12, color: Colors.white.withValues(alpha: 0.65)),
+                              Icon(
+                                Icons.chevron_left_rounded,
+                                size: 12,
+                                color: Colors.white.withValues(alpha: 0.65),
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 isAbstinence ? 'Log slip' : 'Skip',
@@ -161,7 +165,8 @@ class NowTaskCard extends ConsumerWidget {
                     Expanded(
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => showEntryCompleteSheet(context, ref, entry),
+                        onTap: () =>
+                            showEntryCompleteSheet(context, ref, entry),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
@@ -180,7 +185,11 @@ class NowTaskCard extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              Icon(Icons.chevron_right_rounded, size: 12, color: Colors.white.withValues(alpha: 0.9)),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 12,
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
                             ],
                           ),
                         ),
@@ -197,40 +206,40 @@ class NowTaskCard extends ConsumerWidget {
   }
 
   LinearGradient _gradientFor(String? goalType) => switch (goalType) {
-        'HABIT' => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF3A8FEF), Color(0xFF7BB3FF)],
-          ),
-        'ABSTINENCE' => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF2EA69F), Color(0xFF5BBFB8)],
-          ),
-        'TASK' => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF9061E0), Color(0xFFBC98FF)],
-          ),
-        'QUANTIFIED' => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0E9FC8), Color(0xFF38BEF5)],
-          ),
-        _ => const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF6355EE), Color(0xFF9B8FFF)],
-          ),
-      };
+    'HABIT' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF3A8FEF), Color(0xFF7BB3FF)],
+    ),
+    'ABSTINENCE' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF2EA69F), Color(0xFF5BBFB8)],
+    ),
+    'TASK' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF9061E0), Color(0xFFBC98FF)],
+    ),
+    'QUANTIFIED' => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF0E9FC8), Color(0xFF38BEF5)],
+    ),
+    _ => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF6355EE), Color(0xFF9B8FFF)],
+    ),
+  };
 
   Color _shadowFor(String? goalType) => switch (goalType) {
-        'HABIT' => const Color(0xFF3A8FEF).withValues(alpha: 0.38),
-        'ABSTINENCE' => const Color(0xFF2EA69F).withValues(alpha: 0.35),
-        'TASK' => const Color(0xFF9061E0).withValues(alpha: 0.38),
-        'QUANTIFIED' => const Color(0xFF0E9FC8).withValues(alpha: 0.35),
-        _ => const Color(0xFF6355EE).withValues(alpha: 0.42),
-      };
+    'HABIT' => const Color(0xFF3A8FEF).withValues(alpha: 0.38),
+    'ABSTINENCE' => const Color(0xFF2EA69F).withValues(alpha: 0.35),
+    'TASK' => const Color(0xFF9061E0).withValues(alpha: 0.38),
+    'QUANTIFIED' => const Color(0xFF0E9FC8).withValues(alpha: 0.35),
+    _ => const Color(0xFF6355EE).withValues(alpha: 0.42),
+  };
 
   String _fmt(TimeOfDay t) {
     final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
@@ -252,6 +261,7 @@ class _GoalBadge extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(6),
       ),
+      width: 150,
       child: Text(
         label,
         overflow: TextOverflow.ellipsis,

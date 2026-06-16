@@ -24,6 +24,7 @@ Thumbs.db
 *.iml
 *.ipr
 *.iws
+.claude
 
 # ── API (Spring Boot / Maven) ────────────────────────────────────────────────
 api/HELP.md

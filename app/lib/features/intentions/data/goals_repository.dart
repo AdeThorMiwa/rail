@@ -7,11 +7,9 @@ class GoalsRepository {
   const GoalsRepository(this._client);
 
   Future<List<GoalListItem>> list() async {
-    final res = await _client.dio.get('/intentions');
+    final res = await _client.dio.get('/goals');
     return (res.data as List)
-        .map((e) => e as Map<String, dynamic>)
-        .where((j) => j['activeGoal'] != null)
-        .map((j) => GoalListItem.fromJson(j['activeGoal'] as Map<String, dynamic>))
+        .map((e) => GoalListItem.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

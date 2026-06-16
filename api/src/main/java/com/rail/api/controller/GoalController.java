@@ -26,6 +26,11 @@ public class GoalController {
     private final ChatService chatService;
     private final UserResolver userResolver;
 
+    @GetMapping
+    public List<GoalDto> list(@AuthenticationPrincipal UUID userPid) {
+        return goalService.list(userResolver.resolve(userPid));
+    }
+
     @GetMapping("/{pid}")
     public GoalDto get(
         @AuthenticationPrincipal UUID userPid,

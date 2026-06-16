@@ -14,14 +14,17 @@ import com.rail.api.entity.IntentionType;
 import com.rail.api.entity.TaskStatus;
 import com.rail.api.entity.User;
 import com.rail.api.event.IntentionConfirmedEvent;
+import com.rail.api.repository.DailyScheduleEntryRepository;
 import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.GoalTargetRepository;
 import com.rail.api.repository.IntentionProposalRepository;
 import com.rail.api.repository.IntentionRepository;
 import com.rail.api.repository.MilestoneRepository;
-import com.rail.api.repository.TaskRepository;
 import com.rail.api.repository.TaskTargetRepository;
+import com.rail.api.repository.UserSchedulingProfileRepository;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -45,8 +48,9 @@ public class IntentionService {
     private final GoalRepository goalRepository;
     private final GoalTargetRepository goalTargetRepository;
     private final MilestoneRepository milestoneRepository;
-    private final TaskRepository taskRepository;
     private final TaskTargetRepository taskTargetRepository;
+    private final DailyScheduleEntryRepository dailyScheduleEntryRepository;
+    private final UserSchedulingProfileRepository profileRepository;
     private final IntentionGenerationService generationService;
     private final StreakService streakService;
     private final DtoMapper dtoMapper;
@@ -167,25 +171,23 @@ public class IntentionService {
             goalDto = goalRepository
                 .findByIntentionAndStatus(intention, GoalStatus.ACTIVE)
                 .map(goal -> {
-                    var milestones =
-                        milestoneRepository.findByGoalOrderByPosition(goal);
-                    var tasks = taskRepository.findByGoalAndStatus(
-                        goal,
-                        TaskStatus.PENDING
-                    );
+                    var user = intention.getOwner();
+                    var milestones = milestoneRepository.findByGoalOrderByPosition(goal);
+                    var today = profileRepository.findByUser(user)
+                        .map(p -> LocalDate.now(ZoneId.of(p.getTimezone())))
+                        .orElseGet(LocalDate::now);
+                    var todaysTasks = dailyScheduleEntryRepository
+                        .findTaskEntriesByUserAndDateAndGoal(user, today, goal)
+                        .stream()
+                        .map(e -> e.getTask())
+                        .toList();
                     var target = goalTargetRepository
                         .findByGoal(goal)
                         .map(gt -> {
-                            var current =
-                                taskTargetRepository.sumActualValueByGoalAndTaskStatus(
-                                    goal,
-                                    TaskStatus.DONE
-                                );
-                            return new GoalTargetDto(
-                                gt.getTargetValue(),
-                                current,
-                                gt.getUnit()
+                            var current = taskTargetRepository.sumActualValueByGoalAndTaskStatus(
+                                goal, TaskStatus.DONE
                             );
+                            return new GoalTargetDto(gt.getTargetValue(), current, gt.getUnit());
                         })
                         .orElse(null);
                     var habitStats = (goal.getType() == GoalType.HABIT || goal.getType() == GoalType.ABSTINENCE)
@@ -197,7 +199,7 @@ public class IntentionService {
                         target,
                         habitStats,
                         milestones,
-                        tasks
+                        todaysTasks
                     );
                 })
                 .orElse(null);

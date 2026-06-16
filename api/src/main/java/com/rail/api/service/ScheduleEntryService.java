@@ -72,29 +72,40 @@ public class ScheduleEntryService {
     ) {
         DailyScheduleEntry entry = resolveOwned(entryPid, user);
         Task task = entry.getTask();
-        if (task == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entry has no task");
+        if (task == null) throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Entry has no task"
+        );
 
         DailyScheduleEntryStatus prevEntryStatus = entry.getStatus();
         entry.setStatus(DailyScheduleEntryStatus.COMPLETED);
         entryRepository.save(entry);
 
-        TaskCompletionType resolvedType = completionType != null ? completionType : TaskCompletionType.FULL;
+        TaskCompletionType resolvedType =
+            completionType != null ? completionType : TaskCompletionType.FULL;
         LocalDate occurrenceDate = entry.getDailySchedule().getScheduledDate();
 
         if (isRecurring(task)) {
-            occurrenceRepository.save(TaskOccurrence.builder()
-                .task(task)
-                .occurrenceDate(occurrenceDate)
-                .status(OccurrenceStatus.DONE)
-                .completionType(resolvedType)
-                .completionNote(completionNote)
-                .completedAt(Instant.now())
-                .actualValue(actualValue)
-                .build());
+            occurrenceRepository.save(
+                TaskOccurrence.builder()
+                    .task(task)
+                    .occurrenceDate(occurrenceDate)
+                    .status(OccurrenceStatus.DONE)
+                    .completionType(resolvedType)
+                    .completionNote(completionNote)
+                    .completedAt(Instant.now())
+                    .actualValue(actualValue)
+                    .build()
+            );
 
             var goal = task.getGoal();
-            long addedMinutes = task.getDurationMinutes() != null ? task.getDurationMinutes() : 0;
-            goal.setActualTotalHours(goal.getActualTotalHours() + (addedMinutes / 60));
+            long addedMinutes =
+                task.getDurationMinutes() != null
+                    ? task.getDurationMinutes()
+                    : 0;
+            goal.setActualTotalHours(
+                goal.getActualTotalHours() + (addedMinutes / 60)
+            );
             goalRepository.save(goal);
         } else {
             TaskStatus prevTaskStatus = task.getStatus();
@@ -107,28 +118,55 @@ public class ScheduleEntryService {
             taskRepository.save(task);
 
             var goal = task.getGoal();
-            long addedMinutes = task.getDurationMinutes() != null ? task.getDurationMinutes() : 0;
-            goal.setActualTotalHours(goal.getActualTotalHours() + (addedMinutes / 60));
+            long addedMinutes =
+                task.getDurationMinutes() != null
+                    ? task.getDurationMinutes()
+                    : 0;
+            goal.setActualTotalHours(
+                goal.getActualTotalHours() + (addedMinutes / 60)
+            );
             goalRepository.save(goal);
 
             taskTargetRepository.findByTask(task).ifPresent(tt -> {
-                tt.setActualValue(actualValue != null ? actualValue : tt.getEstimatedValue());
+                tt.setActualValue(
+                    actualValue != null ? actualValue : tt.getEstimatedValue()
+                );
                 taskTargetRepository.save(tt);
             });
 
-            if (task.getMilestone() != null) completionService.recalcMilestone(task.getMilestone());
+            if (task.getMilestone() != null) completionService.recalcMilestone(
+                task.getMilestone()
+            );
             completionService.recalcGoalCompletion(goal);
 
             if (resolvedType == TaskCompletionType.PARTIAL) {
-                createFollowUpIfPartial(user, task, completionNote, actualValue);
+                createFollowUpIfPartial(
+                    user,
+                    task,
+                    completionNote,
+                    actualValue
+                );
             }
 
             logChange(
-                user, entry, task,
+                user,
+                entry,
+                task,
                 ScheduleChangeType.TASK_COMPLETED,
-                buildJson("taskStatus", prevTaskStatus.name(), "entryStatus", prevEntryStatus.name()),
-                buildJson("taskStatus", task.getStatus().name(), "entryStatus", entry.getStatus().name(),
-                    "completionType", resolvedType.name()),
+                buildJson(
+                    "taskStatus",
+                    prevTaskStatus.name(),
+                    "entryStatus",
+                    prevEntryStatus.name()
+                ),
+                buildJson(
+                    "taskStatus",
+                    task.getStatus().name(),
+                    "entryStatus",
+                    entry.getStatus().name(),
+                    "completionType",
+                    resolvedType.name()
+                ),
                 completionNote
             );
         }
@@ -140,7 +178,10 @@ public class ScheduleEntryService {
     public ScheduleEntryDto skip(UUID entryPid, User user, String reason) {
         DailyScheduleEntry entry = resolveOwned(entryPid, user);
         Task task = entry.getTask();
-        if (task == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entry has no task");
+        if (task == null) throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Entry has no task"
+        );
 
         DailyScheduleEntryStatus prevEntryStatus = entry.getStatus();
         entry.setStatus(DailyScheduleEntryStatus.SKIPPED);
@@ -150,18 +191,27 @@ public class ScheduleEntryService {
         LocalDate occurrenceDate = entry.getDailySchedule().getScheduledDate();
 
         if (isRecurring(task)) {
-            occurrenceRepository.save(TaskOccurrence.builder()
-                .task(task)
-                .occurrenceDate(occurrenceDate)
-                .status(OccurrenceStatus.SKIPPED)
-                .completionNote(reason)
-                .build());
+            occurrenceRepository.save(
+                TaskOccurrence.builder()
+                    .task(task)
+                    .occurrenceDate(occurrenceDate)
+                    .status(OccurrenceStatus.SKIPPED)
+                    .completionNote(reason)
+                    .build()
+            );
 
             logChange(
-                user, entry, task,
+                user,
+                entry,
+                task,
                 ScheduleChangeType.TASK_SKIPPED,
                 buildJson("entryStatus", prevEntryStatus.name()),
-                buildJson("entryStatus", entry.getStatus().name(), "recurring", "true"),
+                buildJson(
+                    "entryStatus",
+                    entry.getStatus().name(),
+                    "recurring",
+                    "true"
+                ),
                 reason
             );
         } else {
@@ -174,11 +224,24 @@ public class ScheduleEntryService {
             taskRepository.save(task);
 
             logChange(
-                user, entry, task,
+                user,
+                entry,
+                task,
                 ScheduleChangeType.TASK_SKIPPED,
-                buildJson("taskStatus", prevTaskStatus.name(), "entryStatus", prevEntryStatus.name()),
-                buildJson("taskStatus", task.getStatus().name(), "entryStatus", entry.getStatus().name(),
-                    "flexibility", task.getFlexibility().name()),
+                buildJson(
+                    "taskStatus",
+                    prevTaskStatus.name(),
+                    "entryStatus",
+                    prevEntryStatus.name()
+                ),
+                buildJson(
+                    "taskStatus",
+                    task.getStatus().name(),
+                    "entryStatus",
+                    entry.getStatus().name(),
+                    "flexibility",
+                    task.getFlexibility().name()
+                ),
                 reason
             );
         }
@@ -190,7 +253,10 @@ public class ScheduleEntryService {
     public ScheduleEntryDto slip(UUID entryPid, User user, String note) {
         DailyScheduleEntry entry = resolveOwned(entryPid, user);
         Task task = entry.getTask();
-        if (task == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entry has no task");
+        if (task == null) throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Entry has no task"
+        );
 
         DailyScheduleEntryStatus prevEntryStatus = entry.getStatus();
         entry.setStatus(DailyScheduleEntryStatus.SKIPPED);
@@ -198,15 +264,19 @@ public class ScheduleEntryService {
         entryRepository.save(entry);
 
         LocalDate occurrenceDate = entry.getDailySchedule().getScheduledDate();
-        occurrenceRepository.save(TaskOccurrence.builder()
-            .task(task)
-            .occurrenceDate(occurrenceDate)
-            .status(OccurrenceStatus.MISSED)
-            .completionNote(note)
-            .build());
+        occurrenceRepository.save(
+            TaskOccurrence.builder()
+                .task(task)
+                .occurrenceDate(occurrenceDate)
+                .status(OccurrenceStatus.MISSED)
+                .completionNote(note)
+                .build()
+        );
 
         logChange(
-            user, entry, task,
+            user,
+            entry,
+            task,
             ScheduleChangeType.TASK_SKIPPED,
             buildJson("entryStatus", prevEntryStatus.name()),
             buildJson("entryStatus", entry.getStatus().name(), "slip", "true"),
@@ -222,40 +292,57 @@ public class ScheduleEntryService {
         return recurrenceRepository.findByGoal(task.getGoal()).isPresent();
     }
 
-    private void createFollowUpIfPartial(User user, Task original, String completionNote, BigDecimal actualValue) {
-        String followUpNotes = completionNote != null && !completionNote.isBlank()
-            ? "Continued from partial: " + completionNote
-            : "Continuing from a partial session.";
+    private void createFollowUpIfPartial(
+        User user,
+        Task original,
+        String completionNote,
+        BigDecimal actualValue
+    ) {
+        String followUpNotes =
+            completionNote != null && !completionNote.isBlank()
+                ? "Continued from partial: " + completionNote
+                : "Continuing from a partial session.";
 
-        Task followUp = taskRepository.saveAndFlush(Task.builder()
-            .goal(original.getGoal())
-            .milestone(original.getMilestone())
-            .assignedTo(original.getAssignedTo())
-            .rescheduledFrom(original)
-            .title(original.getTitle())
-            .notes(followUpNotes)
-            .status(TaskStatus.PENDING)
-            .durationMinutes(original.getDurationMinutes())
-            .fixedTime(original.getFixedTime())
-            .flexibility(original.getFlexibility())
-            .flexibilitySetBy(original.getFlexibilitySetBy())
-            .priority(original.getPriority())
-            .deadline(original.getDeadline())
-            .build()
+        Task followUp = taskRepository.saveAndFlush(
+            Task.builder()
+                .goal(original.getGoal())
+                .milestone(original.getMilestone())
+                .assignedTo(original.getAssignedTo())
+                .rescheduledFrom(original)
+                .title(original.getTitle())
+                .notes(followUpNotes)
+                .status(TaskStatus.PENDING)
+                .durationMinutes(original.getDurationMinutes())
+                .fixedTime(original.getFixedTime())
+                .flexibility(original.getFlexibility())
+                .flexibilitySetBy(original.getFlexibilitySetBy())
+                .priority(original.getPriority())
+                .deadline(original.getDeadline())
+                .build()
         );
 
-        eventPublisher.publishEvent(new TaskCreatedEvent(user, List.of(followUp)));
+        eventPublisher.publishEvent(
+            new TaskCreatedEvent(user, List.of(followUp))
+        );
 
         taskTargetRepository.findByTask(original).ifPresent(original_tt -> {
-            BigDecimal remaining = original_tt.getEstimatedValue()
-                .subtract(actualValue != null ? actualValue : original_tt.getEstimatedValue())
+            BigDecimal remaining = original_tt
+                .getEstimatedValue()
+                .subtract(
+                    actualValue != null
+                        ? actualValue
+                        : original_tt.getEstimatedValue()
+                )
                 .max(BigDecimal.ZERO);
-            taskTargetRepository.save(TaskTarget.builder()
-                .task(followUp)
-                .estimatedValue(remaining.compareTo(BigDecimal.ZERO) > 0
-                    ? remaining
-                    : original_tt.getEstimatedValue())
-                .build()
+            taskTargetRepository.save(
+                TaskTarget.builder()
+                    .task(followUp)
+                    .estimatedValue(
+                        remaining.compareTo(BigDecimal.ZERO) > 0
+                            ? remaining
+                            : original_tt.getEstimatedValue()
+                    )
+                    .build()
             );
         });
     }
@@ -301,7 +388,9 @@ public class ScheduleEntryService {
 
             List<DailyScheduleEntry> overdue =
                 entryRepository.findPendingTaskEntriesDueForAutoMiss(
-                    profile.getUser(), today, now
+                    profile.getUser(),
+                    today,
+                    now
                 );
 
             for (DailyScheduleEntry entry : overdue) {
@@ -310,7 +399,10 @@ public class ScheduleEntryService {
 
                 Task task = entry.getTask();
                 if (task != null) {
-                    if (task.getFlexibility() == TaskFlexibility.FIXED) {
+                    if (
+                        task.getFlexibility() == TaskFlexibility.FIXED &&
+                        !isRecurring(task)
+                    ) {
                         task.setStatus(TaskStatus.MISSED);
                         taskRepository.save(task);
                         completionService.recalcGoalCompletion(task.getGoal());
@@ -332,13 +424,26 @@ public class ScheduleEntryService {
     }
 
     private DailyScheduleEntry resolveOwned(UUID entryPid, User user) {
-        DailyScheduleEntry entry = entryRepository.findByPid(entryPid)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entry not found"));
+        DailyScheduleEntry entry = entryRepository
+            .findByPid(entryPid)
+            .orElseThrow(() ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Entry not found"
+                )
+            );
         Task task = entry.getTask();
-        if (task != null && !task.getGoal().getIntention().getOwner().getId().equals(user.getId())) {
+        if (
+            task != null &&
+            !task
+                .getGoal()
+                .getIntention()
+                .getOwner()
+                .getId()
+                .equals(user.getId())
+        ) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         return entry;
     }
-
 }

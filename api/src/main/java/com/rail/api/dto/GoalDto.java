@@ -20,5 +20,5 @@ public record GoalDto(
     GoalTargetDto target,
     HabitStatsDto habitStats,
     List<MilestoneDto> milestones,
-    List<TaskDto> tasks
+    List<TaskDto> todaysTasks
 ) {}
