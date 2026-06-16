@@ -1,12 +1,13 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "deploy": {
-    "startCommand": "cd api && ./mvnw clean package -DskipTests && java -jar target/*.jar",
-    "restartPolicyMaxRetries": 5,
-    "restartPolicyWindowSeconds": 600
-  },
   "build": {
-    "builder": "dockerfile",
+    "builder": "NIXPACKS",
     "buildCommand": "cd api && ./mvnw clean package -DskipTests"
+  },
+  "deploy": {
+    "startCommand": "cd api && java -jar target/*.jar",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5,
+    "healthcheckPath": "/actuator/health"
   }
 }
