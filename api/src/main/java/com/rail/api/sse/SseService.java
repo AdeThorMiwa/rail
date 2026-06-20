@@ -1,5 +1,6 @@
 package com.rail.api.sse;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -88,6 +90,24 @@ public class SseService {
             }
         }
         userEmitters.removeAll(dead);
+    }
+
+    @Scheduled(fixedDelay = 25_000)
+    public void sendHeartbeat() {
+        if (emitters.isEmpty()) return;
+        for (UUID userPid : List.copyOf(emitters.keySet())) {
+            CopyOnWriteArrayList<SseEmitter> userEmitters = emitters.get(userPid);
+            if (userEmitters == null || userEmitters.isEmpty()) continue;
+            List<SseEmitter> dead = new ArrayList<>();
+            for (SseEmitter emitter : userEmitters) {
+                try {
+                    emitter.send(SseEmitter.event().comment("ping"));
+                } catch (Exception e) {
+                    dead.add(emitter);
+                }
+            }
+            userEmitters.removeAll(dead);
+        }
     }
 
     private void unregister(UUID userPid, SseEmitter emitter) {
