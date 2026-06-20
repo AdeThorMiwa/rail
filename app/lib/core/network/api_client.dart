@@ -49,7 +49,8 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode == 401 && !_isRefreshing) {
+    final status = err.response?.statusCode;
+    if ((status == 401 || status == 403) && !_isRefreshing) {
       _isRefreshing = true;
       try {
         final refreshToken = await _client.storage.read(key: _refreshTokenKey);
