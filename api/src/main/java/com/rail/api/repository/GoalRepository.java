@@ -22,6 +22,7 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
             SELECT g FROM Goal g
             JOIN g.intention i
             WHERE i.owner = :owner AND g.status = :status
+            ORDER BY g.createdAt DESC
         """
     )
     List<Goal> findByOwnerAndStatus(User owner, GoalStatus status);
