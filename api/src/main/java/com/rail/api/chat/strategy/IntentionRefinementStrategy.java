@@ -54,6 +54,8 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         Active Proposal ID: %s
         Current time: %s
 
+        %s
+
         CURRENT SYNTHESIS:
         %s
 
@@ -297,18 +299,9 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         if the user wants changes, they will tap Revise or reply naturally.
         """.formatted(
             ctx.chat().getPid(),
-            ctx
-                .activeProposal()
-                .map(p -> p.getPid().toString())
-                .orElse("none"),
-            ctx
-                .now()
-                .format(
-                    DateTimeFormatter.ofPattern(
-                        "EEEE, d MMMM yyyy 'at' HH:mm z",
-                        Locale.ENGLISH
-                    )
-                ),
+            ctx.activeProposal().map(p -> p.getPid().toString()).orElse("none"),
+            ctx.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' HH:mm z", Locale.ENGLISH)),
+            ContextStrategy.userProfileSection(ctx),
             synthesisJson
         );
     }

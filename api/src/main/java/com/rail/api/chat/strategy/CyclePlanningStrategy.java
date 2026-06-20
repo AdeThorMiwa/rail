@@ -95,6 +95,8 @@ public class CyclePlanningStrategy implements ContextStrategy {
         where the user picks some goals to concentrate on. Help them choose their focus
         goals wisely — then call setCycleFocus when they've decided.
 
+        %s
+
         ════════════════════════════════════════
         CYCLE CONTEXT
         ════════════════════════════════════════
@@ -220,6 +222,7 @@ public class CyclePlanningStrategy implements ContextStrategy {
         - No raw markdown outside of text/list values.
         Fix every failure before returning.
         """.formatted(
+            ContextStrategy.userProfileSection(ctx),
             cycleSection,
             goalsSection,
             focusSection,

@@ -3,7 +3,9 @@ package com.rail.api.context;
 import com.rail.api.entity.Chat;
 import com.rail.api.entity.ChatMessage;
 import com.rail.api.entity.IntentionProposal;
+import com.rail.api.entity.UserSchedulingProfile;
 import com.rail.api.repository.ChatMessageRepository;
+import com.rail.api.repository.UserSchedulingProfileRepository;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Component;
 public class ContextManager {
 
     private final ChatMessageRepository messageRepository;
+    private final UserSchedulingProfileRepository schedulingProfileRepository;
 
     public ConversationContext build(
         Chat chat,
@@ -23,6 +26,8 @@ public class ContextManager {
         IntentionProposal activeProposal
     ) {
         List<ChatMessage> history = strategy.fetchHistory(chat, messageRepository);
+        Optional<UserSchedulingProfile> schedulingProfile =
+            schedulingProfileRepository.findByUser(chat.getUser());
 
         return new ConversationContext(
             chat.getUser(),
@@ -30,7 +35,8 @@ public class ContextManager {
             history,
             Optional.ofNullable(activeProposal),
             userInput,
-            ZonedDateTime.now()
+            ZonedDateTime.now(),
+            schedulingProfile
         );
     }
 }

@@ -30,6 +30,8 @@ public class GeneralChatStrategy implements ContextStrategy {
         Chat ID: %s
         Current time: %s
 
+        %s
+
         ════════════════════════════════════════
         YOUR JOB IN THIS CONVERSATION
         ════════════════════════════════════════
@@ -111,14 +113,8 @@ public class GeneralChatStrategy implements ContextStrategy {
         Fix every failure before returning.
         """.formatted(
             ctx.chat().getPid(),
-            ctx
-                .now()
-                .format(
-                    DateTimeFormatter.ofPattern(
-                        "EEEE, d MMMM yyyy 'at' HH:mm z",
-                        Locale.ENGLISH
-                    )
-                )
+            ctx.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' HH:mm z", Locale.ENGLISH)),
+            ContextStrategy.userProfileSection(ctx)
         );
     }
 }

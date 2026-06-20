@@ -23,4 +23,28 @@ public interface ContextStrategy {
             .sorted(Comparator.comparing(ChatMessage::getCreatedAt))
             .toList();
     }
+
+    static String userProfileSection(ConversationContext ctx) {
+        String scheduleLines = ctx.schedulingProfile()
+            .map(p -> """
+                Timezone: %s
+                Wake: %s · Sleep: %s
+                Deep work: %s–%s
+                Energy pattern: %s
+                """.formatted(
+                    p.getTimezone(),
+                    p.getWakeTime(), p.getSleepTime(),
+                    p.getDeepWorkStart(), p.getDeepWorkEnd(),
+                    p.getEnergyPattern()
+                ))
+            .orElse("");
+
+        return """
+            ════════════════════════════════════════
+            USER PROFILE
+            ════════════════════════════════════════
+
+            Name: %s
+            %s""".formatted(ctx.user().getDisplayName(), scheduleLines).strip();
+    }
 }

@@ -131,7 +131,7 @@ public class CycleRetroStrategy implements ContextStrategy {
             - Starts with {"blocks":[ and ends with ]}?
             - No markdown?
             Fix every failure before returning.
-            """.formatted(buildContextBlock());
+            """.formatted(ContextStrategy.userProfileSection(ctx) + "\n\n" + buildContextBlock());
     }
 
     private String buildContextBlock() {

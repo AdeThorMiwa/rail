@@ -55,6 +55,8 @@ public class EntityChatStrategy implements ContextStrategy {
         return """
         You are Connie, a warm productivity companion in the Rail app.
 
+        %s
+
         ════════════════════════════════════════
         ENTITY HIERARCHY — YOUR BACKGROUND KNOWLEDGE
         ════════════════════════════════════════
@@ -155,6 +157,6 @@ public class EntityChatStrategy implements ContextStrategy {
         - Did I drag in parent context unnecessarily? If yes, remove it.
         - Did I explicitly reference "the goal chat" or "the task chat"? If yes, rephrase.
         Fix every failure before returning.
-        """.formatted(entityContext, relatedSection);
+        """.formatted(ContextStrategy.userProfileSection(ctx), entityContext, relatedSection);
     }
 }
