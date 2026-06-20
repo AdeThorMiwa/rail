@@ -10,6 +10,7 @@ import com.rail.api.intelligence.RetroAnalysis;
 import com.rail.api.repository.ChatMessageRepository;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class CycleRetroStrategy implements ContextStrategy {
 
@@ -17,18 +18,24 @@ public class CycleRetroStrategy implements ContextStrategy {
     private final RetroAnalysis retroAnalysis;
     private final List<Task> carryOverCandidates;
     private final String priorRetroSummary;
+    private final String connieModel;
 
     public CycleRetroStrategy(
         UserCycle cycle,
         RetroAnalysis retroAnalysis,
         List<Task> carryOverCandidates,
-        String priorRetroSummary
+        String priorRetroSummary,
+        String connieModel
     ) {
         this.cycle = cycle;
         this.retroAnalysis = retroAnalysis;
         this.carryOverCandidates = carryOverCandidates;
         this.priorRetroSummary = priorRetroSummary;
+        this.connieModel = connieModel;
     }
+
+    @Override
+    public String model() { return connieModel; }
 
     @Override
     public List<ChatMessage> fetchHistory(Chat chat, ChatMessageRepository repo) {
@@ -39,16 +46,15 @@ public class CycleRetroStrategy implements ContextStrategy {
     public String systemPrompt(ConversationContext ctx) {
         if (cycle == null) {
             return """
-                You are Connie. This cycle could not be found.
+                You are Connie, Rail's intelligence layer (Retrospective Guide mode). This cycle could not be found.
                 Apologise briefly and ask the user to return to the home screen.
                 Every response MUST be valid JSON: {"blocks":[{"type":"text","spans":[{"type":"text","text":"..."}]}]}
                 """;
         }
 
         return """
-            You are Connie, a warm productivity companion in the Rail app.
-            The user's cycle has just ended — you're running their retrospective together.
-            Be warm, celebratory of wins, honest about shortfalls, and forward-looking.
+            You are Connie, Rail's intelligence layer. In this session you are the Retrospective Guide — you run the end-of-cycle retrospective, surface wins and lessons, and wrap up the cycle.
+            The user's cycle has just ended. Be warm, celebratory of wins, honest about shortfalls, and forward-looking.
 
             %s
 
@@ -109,6 +115,9 @@ public class CycleRetroStrategy implements ContextStrategy {
               }]
             }
 
+            STATED PREFERENCES:
+            If during the retrospective the user reveals a clear, durable preference about how they want their schedule or habits managed, call updatePreference silently. Common examples: "I realised I work better with fewer tasks", "mornings were my best time", "I should stop scheduling gym on Fridays". Do not mention to the user that you saved it.
+
             RULES:
             - Use exact numbers from CYCLE STATS. Do not invent rates.
             - completionRate / adherenceRate / resistanceRate must be decimal 0.0–1.0.
@@ -131,92 +140,83 @@ public class CycleRetroStrategy implements ContextStrategy {
             - Starts with {"blocks":[ and ends with ]}?
             - No markdown?
             Fix every failure before returning.
-            """.formatted(ContextStrategy.userProfileSection(ctx) + "\n\n" + buildContextBlock());
+            """.formatted(ContextStrategy.userProfileSection(ctx) + "\n\n" + ContextStrategy.connieLogsSection(ctx) + "\n\n" + buildContextBlock());
     }
 
     private String buildContextBlock() {
-        StringBuilder sb = new StringBuilder();
+        String cycleContext = """
+            ════════════════════════════════════════
+            CYCLE CONTEXT
+            ════════════════════════════════════════
 
-        sb.append("════════════════════════════════════════\n");
-        sb.append("CYCLE CONTEXT\n");
-        sb.append("════════════════════════════════════════\n\n");
-        sb.append("Cycle: \"").append(cycle.getTitle()).append("\"\n");
-        sb.append("Period: ").append(cycle.getStartDate()).append(" → ").append(cycle.getEndDate()).append("\n");
-        sb.append("Status: in review\n");
+            Cycle: "%s"
+            Period: %s → %s
+            Status: in review
+            """.formatted(cycle.getTitle(), cycle.getStartDate(), cycle.getEndDate());
 
-        sb.append("\n════════════════════════════════════════\n");
-        sb.append("CYCLE STATS\n");
-        sb.append("════════════════════════════════════════\n\n");
+        String statsBody = retroAnalysis == null
+            ? "Stats not available — use the conversation to surface wins and lessons.\n"
+            : buildFocusGoalStats() + buildHabitStats() + buildAbstinenceStats();
 
-        if (retroAnalysis == null) {
-            sb.append("Stats not available — use the conversation to surface wins and lessons.\n");
-        } else {
-            appendFocusGoalStats(sb);
-            appendHabitStats(sb);
-            appendAbstinenceStats(sb);
-        }
+        String cycleStats = """
+            ════════════════════════════════════════
+            CYCLE STATS
+            ════════════════════════════════════════
 
-        String carryOverSection = buildCarryOverSection();
-        if (!carryOverSection.isBlank()) {
-            sb.append("\n").append(carryOverSection);
-        }
+            %s""".formatted(statsBody);
 
-        String priorSection = buildPriorRetroSection();
-        if (!priorSection.isBlank()) {
-            sb.append("\n").append(priorSection);
-        }
-
-        return sb.toString().strip();
+        return Stream.of(cycleContext, cycleStats, buildCarryOverSection(), buildPriorRetroSection())
+            .filter(s -> !s.isBlank())
+            .collect(Collectors.joining("\n"))
+            .strip();
     }
 
-    private void appendFocusGoalStats(StringBuilder sb) {
+    private String buildFocusGoalStats() {
         List<RetroAnalysis.FocusGoalStats> stats = retroAnalysis.focusGoals();
-        if (stats == null || stats.isEmpty()) return;
+        if (stats == null || stats.isEmpty()) return "";
 
-        sb.append("FOCUS GOAL COMPLETION (PROJECT / TASK / QUANTIFIED):\n");
-        for (RetroAnalysis.FocusGoalStats g : stats) {
-            int pct = (int) Math.round(g.completionRate() * 100);
-            sb.append("  - \"").append(g.goalTitle()).append("\" [").append(g.goalType()).append("]\n");
-            sb.append("    Tasks: ").append(g.completedTasks()).append(" done / ")
-              .append(g.totalTasks()).append(" total (").append(pct).append("%)");
-            if (g.skippedTasks() > 0) {
-                sb.append(", ").append(g.skippedTasks()).append(" skipped");
-            }
-            sb.append("\n");
-        }
-        sb.append("\n");
+        String rows = stats.stream()
+            .map(g -> {
+                int pct = (int) Math.round(g.completionRate() * 100);
+                String skipped = g.skippedTasks() > 0 ? ", %d skipped".formatted(g.skippedTasks()) : "";
+                return "  - \"%s\" [%s]\n    Tasks: %d done / %d total (%d%%%s)".formatted(
+                    g.goalTitle(), g.goalType(), g.completedTasks(), g.totalTasks(), pct, skipped);
+            })
+            .collect(Collectors.joining("\n"));
+
+        return "FOCUS GOAL COMPLETION (PROJECT / TASK / QUANTIFIED):\n%s\n\n".formatted(rows);
     }
 
-    private void appendHabitStats(StringBuilder sb) {
+    private String buildHabitStats() {
         List<RetroAnalysis.HabitStats> stats = retroAnalysis.habitStats();
-        if (stats == null || stats.isEmpty()) return;
+        if (stats == null || stats.isEmpty()) return "";
 
-        sb.append("HABIT ADHERENCE:\n");
-        for (RetroAnalysis.HabitStats h : stats) {
-            int pct = (int) Math.round(h.adherenceRate() * 100);
-            sb.append("  - \"").append(h.goalTitle()).append("\"\n");
-            sb.append("    ").append(h.done()).append(" done / ")
-              .append(h.totalOccurrences()).append(" total (").append(pct).append("% adherence)");
-            if (h.missed() > 0) sb.append(", ").append(h.missed()).append(" missed");
-            if (h.skipped() > 0) sb.append(", ").append(h.skipped()).append(" skipped");
-            sb.append("\n");
-        }
-        sb.append("\n");
+        String rows = stats.stream()
+            .map(h -> {
+                int pct = (int) Math.round(h.adherenceRate() * 100);
+                String missed = h.missed() > 0 ? ", %d missed".formatted(h.missed()) : "";
+                String skipped = h.skipped() > 0 ? ", %d skipped".formatted(h.skipped()) : "";
+                return "  - \"%s\"\n    %d done / %d total (%d%% adherence%s%s)".formatted(
+                    h.goalTitle(), h.done(), h.totalOccurrences(), pct, missed, skipped);
+            })
+            .collect(Collectors.joining("\n"));
+
+        return "HABIT ADHERENCE:\n%s\n\n".formatted(rows);
     }
 
-    private void appendAbstinenceStats(StringBuilder sb) {
+    private String buildAbstinenceStats() {
         List<RetroAnalysis.AbstinenceStats> stats = retroAnalysis.abstinenceStats();
-        if (stats == null || stats.isEmpty()) return;
+        if (stats == null || stats.isEmpty()) return "";
 
-        sb.append("ABSTINENCE TRACKING:\n");
-        for (RetroAnalysis.AbstinenceStats a : stats) {
-            int pct = (int) Math.round(a.resistanceRate() * 100);
-            sb.append("  - \"").append(a.goalTitle()).append("\"\n");
-            sb.append("    ").append(pct).append("% resistance rate");
-            if (a.lapses() > 0) sb.append(" — ").append(a.lapses()).append(" lapse(s)");
-            sb.append("\n");
-        }
-        sb.append("\n");
+        String rows = stats.stream()
+            .map(a -> {
+                int pct = (int) Math.round(a.resistanceRate() * 100);
+                String lapses = a.lapses() > 0 ? " — %d lapse(s)".formatted(a.lapses()) : "";
+                return "  - \"%s\"\n    %d%% resistance rate%s".formatted(a.goalTitle(), pct, lapses);
+            })
+            .collect(Collectors.joining("\n"));
+
+        return "ABSTINENCE TRACKING:\n%s\n\n".formatted(rows);
     }
 
     private String buildCarryOverSection() {

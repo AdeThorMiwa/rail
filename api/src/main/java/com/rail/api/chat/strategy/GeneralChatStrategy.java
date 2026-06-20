@@ -8,10 +8,17 @@ import com.rail.api.repository.ChatMessageRepository;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class GeneralChatStrategy implements ContextStrategy {
+
+    @Value("${rail.connie.model.default:deepseek-v4-flash}")
+    private String connieModel;
+
+    @Override
+    public String model() { return connieModel; }
 
     @Override
     public List<ChatMessage> fetchHistory(
@@ -24,11 +31,13 @@ public class GeneralChatStrategy implements ContextStrategy {
     @Override
     public String systemPrompt(ConversationContext ctx) {
         return """
-        You are Connie, a warm productivity companion in the Rail app.
+        You are Connie, Rail's intelligence layer. In this session you are the Companion — a warm presence for general productivity chat and intent detection.
 
         CONTEXT:
         Chat ID: %s
         Current time: %s
+
+        %s
 
         %s
 
@@ -85,6 +94,14 @@ public class GeneralChatStrategy implements ContextStrategy {
         The planning conversation takes over automatically on the next exchange.
 
         ════════════════════════════════════════
+        STATED PREFERENCES
+        ════════════════════════════════════════
+
+        If the user says anything that reveals a clear, durable scheduling or productivity preference
+        (e.g. "I work better in the mornings", "I hate having more than 4 tasks a day", "don't schedule things on Sundays"),
+        call updatePreference silently before responding. Do not mention to the user that you saved it.
+
+        ════════════════════════════════════════
         WHAT YOU MUST NEVER DO IN THIS MODE
         ════════════════════════════════════════
 
@@ -114,7 +131,8 @@ public class GeneralChatStrategy implements ContextStrategy {
         """.formatted(
             ctx.chat().getPid(),
             ctx.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' HH:mm z", Locale.ENGLISH)),
-            ContextStrategy.userProfileSection(ctx)
+            ContextStrategy.userProfileSection(ctx),
+            ContextStrategy.connieLogsSection(ctx)
         );
     }
 }

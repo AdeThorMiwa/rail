@@ -97,16 +97,18 @@ class ListBlockRenderer extends BlockRenderer<ListBlock> {
                 child: MarkdownBody(
                   data: entry.value,
                   shrinkWrap: true,
-                  styleSheet: MarkdownStyleSheet.fromTheme(
-                    Theme.of(context),
-                  ).copyWith(
-                    p: const TextStyle(fontSize: 14, color: Color(0xFF2D2D3A)),
-                    strong: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF2D2D3A),
-                    ),
-                  ),
+                  styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+                      .copyWith(
+                        p: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF2D2D3A),
+                        ),
+                        strong: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2D2D3A),
+                        ),
+                      ),
                 ),
               ),
             ],
@@ -164,25 +166,24 @@ class _ActionsBlockRendererState extends ConsumerState<ActionsBlockRenderer> {
         // Persist terminal state; message_updated SSE will clear loading
         final message = widget.parentMessage;
         if (message != null) {
-          ref.read(chatRepositoryProvider)
-              .resolveActionBlock(message.id, item.id, widget.block.successItems ?? [])
+          ref
+              .read(chatRepositoryProvider)
+              .resolveActionBlock(
+                message.id,
+                item.id,
+                widget.block.successItems ?? [],
+              )
               .catchError((_) {});
         }
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.toString()),
-        backgroundColor: const Color(0xFFFF6B6B),
-      ));
-      if (item.isAsync) {
-        final message = widget.parentMessage;
-        if (message != null) {
-          ref.read(chatRepositoryProvider)
-              .resolveActionBlock(message.id, item.id, widget.block.failureItems ?? [])
-              .catchError((_) {});
-        }
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: const Color(0xFFFF6B6B),
+        ),
+      );
     }
   }
 
@@ -233,7 +234,8 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = item.style;
-    final isPrimary = style == 'primary' || style == 'resume' || style == 'success';
+    final isPrimary =
+        style == 'primary' || style == 'resume' || style == 'success';
     final isDanger = style == 'drop';
 
     return FilledButton(
@@ -306,10 +308,7 @@ class WrapCardBlockRenderer extends BlockRenderer<WrapCardBlock> {
         borderRadius: BorderRadius.circular(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            _buildBody(),
-          ],
+          children: [_buildHeader(), _buildBody()],
         ),
       ),
     );
@@ -443,8 +442,8 @@ class WrapCardBlockRenderer extends BlockRenderer<WrapCardBlock> {
                   color: pct >= 70
                       ? const Color(0xFF4CAF50)
                       : pct >= 40
-                          ? const Color(0xFFFF9800)
-                          : const Color(0xFFEF5350),
+                      ? const Color(0xFFFF9800)
+                      : const Color(0xFFEF5350),
                 ),
               ),
             ],
@@ -459,8 +458,8 @@ class WrapCardBlockRenderer extends BlockRenderer<WrapCardBlock> {
                 pct >= 70
                     ? const Color(0xFF4CAF50)
                     : pct >= 40
-                        ? const Color(0xFFFF9800)
-                        : const Color(0xFFEF5350),
+                    ? const Color(0xFFFF9800)
+                    : const Color(0xFFEF5350),
               ),
               minHeight: 6,
             ),
@@ -505,7 +504,11 @@ class WrapCardBlockRenderer extends BlockRenderer<WrapCardBlock> {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF4CAF50)),
+            child: Icon(
+              Icons.check_circle_rounded,
+              size: 14,
+              color: Color(0xFF4CAF50),
+            ),
           ),
           const SizedBox(width: 6),
           Expanded(
@@ -551,7 +554,11 @@ class RedirectBlockRenderer extends BlockRenderer<RedirectBlock> {
               ),
             ),
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.white),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: Colors.white,
+            ),
           ],
         ),
       ),

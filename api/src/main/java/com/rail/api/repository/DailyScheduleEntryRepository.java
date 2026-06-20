@@ -54,4 +54,34 @@ public interface DailyScheduleEntryRepository
         @Param("date") LocalDate date,
         @Param("goal") Goal goal
     );
+
+    @Query("""
+        SELECT e FROM DailyScheduleEntry e
+        JOIN FETCH e.task t
+        JOIN FETCH t.goal g
+        JOIN FETCH e.dailySchedule ds
+        WHERE ds.user = :user
+          AND ds.scheduledDate >= :since
+          AND e.entryType = 'TASK'
+        ORDER BY ds.scheduledDate ASC, e.startTime ASC
+    """)
+    List<DailyScheduleEntry> findTaskEntriesByUserSince(
+        @Param("user") User user,
+        @Param("since") LocalDate since
+    );
+
+    @Query("""
+        SELECT e.task.id, COUNT(e)
+        FROM DailyScheduleEntry e
+        JOIN e.dailySchedule ds
+        WHERE e.task.id IN :taskIds
+          AND ds.scheduledDate >= :weekStart
+          AND ds.scheduledDate < :today
+        GROUP BY e.task.id
+    """)
+    List<Object[]> countWeeklyAppearancesByTaskIds(
+        @Param("taskIds") List<Long> taskIds,
+        @Param("weekStart") LocalDate weekStart,
+        @Param("today") LocalDate today
+    );
 }

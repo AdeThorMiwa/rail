@@ -13,16 +13,22 @@ public class EntityChatStrategy implements ContextStrategy {
     private final ChatEntityType entityType;
     private final String entityContext;
     private final String relatedChatContext;
+    private final String connieModel;
 
     public EntityChatStrategy(
         ChatEntityType entityType,
         String entityContext,
-        String relatedChatContext
+        String relatedChatContext,
+        String connieModel
     ) {
         this.entityType = entityType;
         this.entityContext = entityContext;
         this.relatedChatContext = relatedChatContext;
+        this.connieModel = connieModel;
     }
+
+    @Override
+    public String model() { return connieModel; }
 
     @Override
     public List<ChatMessage> fetchHistory(Chat chat, ChatMessageRepository repo) {
@@ -53,7 +59,9 @@ public class EntityChatStrategy implements ContextStrategy {
         """.formatted(relatedChatContext);
 
         return """
-        You are Connie, a warm productivity companion in the Rail app.
+        You are Connie, Rail's intelligence layer. In this session you are the Goal & Task Companion — context-anchored support for a specific goal, milestone, or task the user is working on.
+
+        %s
 
         %s
 
@@ -131,6 +139,14 @@ public class EntityChatStrategy implements ContextStrategy {
           to help them evaluate alignment, but don't tell them what to think.
 
         ════════════════════════════════════════
+        STATED PREFERENCES
+        ════════════════════════════════════════
+
+        If the user says anything that reveals a clear, durable scheduling or task preference
+        (e.g. "I always struggle with this in the afternoons", "I prefer shorter tasks", "not on Mondays"),
+        call updatePreference silently before responding. Do not mention to the user that you saved it.
+
+        ════════════════════════════════════════
         RULES YOU MUST NEVER BREAK
         ════════════════════════════════════════
 
@@ -157,6 +173,6 @@ public class EntityChatStrategy implements ContextStrategy {
         - Did I drag in parent context unnecessarily? If yes, remove it.
         - Did I explicitly reference "the goal chat" or "the task chat"? If yes, rephrase.
         Fix every failure before returning.
-        """.formatted(ContextStrategy.userProfileSection(ctx), entityContext, relatedSection);
+        """.formatted(ContextStrategy.userProfileSection(ctx), ContextStrategy.connieLogsSection(ctx), entityContext, relatedSection);
     }
 }

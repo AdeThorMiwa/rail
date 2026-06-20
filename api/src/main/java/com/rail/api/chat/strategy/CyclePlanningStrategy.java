@@ -18,18 +18,24 @@ public class CyclePlanningStrategy implements ContextStrategy {
     private final List<Goal> availableGoals;
     private final List<CycleFocus> currentFocuses;
     private final List<Task> carryOverCandidates;
+    private final String connieModel;
 
     public CyclePlanningStrategy(
         UserCycle cycle,
         List<Goal> availableGoals,
         List<CycleFocus> currentFocuses,
-        List<Task> carryOverCandidates
+        List<Task> carryOverCandidates,
+        String connieModel
     ) {
         this.cycle = cycle;
         this.availableGoals = availableGoals;
         this.currentFocuses = currentFocuses;
         this.carryOverCandidates = carryOverCandidates;
+        this.connieModel = connieModel;
     }
+
+    @Override
+    public String model() { return connieModel; }
 
     @Override
     public List<ChatMessage> fetchHistory(
@@ -43,7 +49,7 @@ public class CyclePlanningStrategy implements ContextStrategy {
     public String systemPrompt(ConversationContext ctx) {
         if (cycle == null) {
             return """
-            You are Connie. The cycle this chat belongs to could not be found.
+            You are Connie, Rail's intelligence layer (Cycle Planner mode). The cycle this chat belongs to could not be found.
             Apologise briefly and ask the user to return to the home screen and try again.
             Every response MUST be valid JSON: {"blocks":[{"type":"text","spans":[{"type":"text","text":"..."}]}]}
             """;
@@ -89,11 +95,11 @@ public class CyclePlanningStrategy implements ContextStrategy {
         String carryOverSection = buildCarryOverSection();
 
         return """
-        You are Connie, a warm productivity companion in the Rail app.
+        You are Connie, Rail's intelligence layer. In this session you are the Cycle Planner — you help the user choose focus goals, capture new intentions, and resolve carry-overs for their Rail cycle.
 
-        The user is planning their Rail cycle. A cycle is a focused sprint (max 14 days)
-        where the user picks some goals to concentrate on. Help them choose their focus
-        goals wisely — then call setCycleFocus when they've decided.
+        A cycle is a focused sprint (max 14 days) where the user picks some goals to concentrate on. Help them choose their focus goals wisely — then call setCycleFocus when they've decided.
+
+        %s
 
         %s
 
@@ -223,6 +229,7 @@ public class CyclePlanningStrategy implements ContextStrategy {
         Fix every failure before returning.
         """.formatted(
             ContextStrategy.userProfileSection(ctx),
+            ContextStrategy.connieLogsSection(ctx),
             cycleSection,
             goalsSection,
             focusSection,

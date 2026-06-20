@@ -63,6 +63,19 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query(
         """
             SELECT t FROM Task t
+            JOIN t.goal g
+            JOIN g.intention i
+            WHERE i.owner = :owner
+              AND t.status IN ('SKIPPED', 'MISSED')
+              AND t.updatedAt >= :since
+            ORDER BY t.updatedAt DESC
+        """
+    )
+    List<Task> findRecentSkipsAndMisses(User owner, Instant since);
+
+    @Query(
+        """
+            SELECT t FROM Task t
             WHERE t.goal IN :goals
             AND t.status = 'PENDING'
             AND t.flexibility = :flexibility

@@ -21,6 +21,7 @@ import com.rail.api.repository.DailyScheduleRepository;
 import com.rail.api.repository.ScheduleChangeRepository;
 import com.rail.api.repository.TaskOccurrenceRepository;
 import com.rail.api.repository.TaskRepository;
+import com.rail.api.repository.UserConnieLogRepository;
 import com.rail.api.repository.UserCycleRepository;
 import com.rail.api.repository.UserSchedulingDayRepository;
 import com.rail.api.repository.UserSchedulingProfileRepository;
@@ -74,6 +75,7 @@ public class LlmDailyScheduler implements DailyScheduler {
     private final SchedulingLlmClient llmClient;
     private final TaskTimePlacer timePlacer;
     private final ScheduleChangeLogger changeLogger;
+    private final UserConnieLogRepository connieLogRepository;
 
     @Override
     public Optional<DailyScheduleDto> getToday(User user) {
@@ -203,7 +205,7 @@ public class LlmDailyScheduler implements DailyScheduler {
             user
         );
         SchedulerTaskFilter.RecurrenceContext recurrenceCtx =
-            taskFilter.buildRecurrenceContext(allPendingTasks, dayOfWeek);
+            taskFilter.buildRecurrenceContext(allPendingTasks, dayOfWeek, date);
 
         log.info(
             "All pending task: {}",
@@ -251,12 +253,17 @@ public class LlmDailyScheduler implements DailyScheduler {
             user,
             Instant.now().minus(14, ChronoUnit.DAYS)
         );
+        List<Task> recentSkips = taskRepository.findRecentSkipsAndMisses(
+            user,
+            Instant.now().minus(14, ChronoUnit.DAYS)
+        );
         List<ScheduleChange> recentChanges = changeRepository.findRecentByUser(
             user,
             Instant.now().minus(7, ChronoUnit.DAYS)
         );
         boolean isRecompute = !frozenEntries.isEmpty();
         List<String> cycleFocusGoalTitles = loadCycleFocusTitles(user);
+        var connieLogs = connieLogRepository.findByUserOrderByCreatedAtAsc(user);
 
         LlmResult llmResult;
         if (pendingTasks.isEmpty()) {
@@ -280,13 +287,17 @@ public class LlmDailyScheduler implements DailyScheduler {
                 date,
                 dayOfWeek,
                 frozenEntries,
-                recurrenceCtx.dayMap(),
+                recurrenceCtx.todayDayMap(),
                 recurrenceCtx.dailyGoalIds(),
                 recentHistory,
+                recentSkips,
                 recentChanges,
                 isRecompute,
                 cycleFocusGoalTitles,
-                bufferMinutes
+                bufferMinutes,
+                connieLogs,
+                recurrenceCtx.dynamicRecurrenceMap(),
+                recurrenceCtx.weeklyCountByTaskId()
             );
 
             llmResult = llmClient.callWithRetry(

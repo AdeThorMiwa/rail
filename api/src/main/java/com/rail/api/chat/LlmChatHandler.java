@@ -94,6 +94,9 @@ public class LlmChatHandler implements ChatHandler {
     @Value("${rail.llm.max-json-retries:2}")
     private int maxJsonRetries;
 
+    @Value("${rail.connie.model.default:deepseek-v4-flash}")
+    private String defaultConnieModel;
+
     @Override
     public ChatHandlerResult handle(Chat chat, String userInput) {
         ContextStrategy strategy;
@@ -237,7 +240,7 @@ public class LlmChatHandler implements ChatHandler {
                 relatedContext = "";
             }
         }
-        return new EntityChatStrategy(entityType, entityContext, relatedContext);
+        return new EntityChatStrategy(entityType, entityContext, relatedContext, defaultConnieModel);
     }
 
     private CycleRetroStrategy buildRetroStrategy(UserCycle cycle, Chat chat) {
@@ -271,7 +274,7 @@ public class LlmChatHandler implements ChatHandler {
             })
             .orElse(null);
 
-        return new CycleRetroStrategy(cycle, retroAnalysis, carryOvers, priorRetroSummary);
+        return new CycleRetroStrategy(cycle, retroAnalysis, carryOvers, priorRetroSummary, defaultConnieModel);
     }
 
     private CyclePlanningStrategy buildCycleStrategy(Chat chat) {
@@ -279,12 +282,12 @@ public class LlmChatHandler implements ChatHandler {
             .findByPidAndOwner(chat.getEntityId(), chat.getUser())
             .orElse(null);
         if (cycle == null) {
-            return new CyclePlanningStrategy(null, List.of(), List.of(), List.of());
+            return new CyclePlanningStrategy(null, List.of(), List.of(), List.of(), defaultConnieModel);
         }
         List<Goal> activeGoals = goalRepository.findByOwnerAndStatus(chat.getUser(), GoalStatus.ACTIVE);
         List<CycleFocus> focuses = cycleFocusRepository.findByCycleOrderByPositionAsc(cycle);
         List<Task> carryOvers = loadCarryOverCandidates(chat.getUser());
-        return new CyclePlanningStrategy(cycle, activeGoals, focuses, carryOvers);
+        return new CyclePlanningStrategy(cycle, activeGoals, focuses, carryOvers, defaultConnieModel);
     }
 
     private List<Task> loadCarryOverCandidates(User user) {

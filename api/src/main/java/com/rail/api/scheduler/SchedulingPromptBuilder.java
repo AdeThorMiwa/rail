@@ -1,23 +1,35 @@
 package com.rail.api.scheduler;
 
 import com.rail.api.entity.DailyScheduleEntry;
+import com.rail.api.entity.GoalRecurrence;
 import com.rail.api.entity.GoalRecurrenceDay;
 import com.rail.api.entity.MilestoneStatus;
 import com.rail.api.entity.ScheduleChange;
 import com.rail.api.entity.Task;
+import com.rail.api.entity.UserConnieLog;
+import com.rail.api.entity.UserConnieLogType;
 import com.rail.api.entity.UserSchedulingProfile;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 class SchedulingPromptBuilder {
+
+    @Value("${rail.scheduling.history-limit:20}")
+    private int historyLimit;
+
+    @Value("${rail.scheduling.changes-limit:10}")
+    private int changesLimit;
 
     String build(
         List<Task> flexibleTasks,
@@ -33,10 +45,14 @@ class SchedulingPromptBuilder {
         Map<Long, GoalRecurrenceDay> todayRecurrence,
         Set<Long> dailyGoalIds,
         List<Task> recentHistory,
+        List<Task> recentSkips,
         List<ScheduleChange> recentChanges,
         boolean isRecompute,
         List<String> cycleFocusGoalTitles,
-        int bufferMinutes
+        int bufferMinutes,
+        List<UserConnieLog> connieLogs,
+        Map<Long, GoalRecurrence> dynamicRecurrenceMap,
+        Map<Long, Integer> weeklyCountByTaskId
     ) {
         int deepMinutes = (int) Duration.between(
             deepStart,
@@ -59,7 +75,7 @@ class SchedulingPromptBuilder {
         };
 
         return """
-        You are Rail's intelligent daily scheduler. Select and order tasks to build the best possible day.
+        You are Connie, Rail's intelligence layer. In this session you are the Daily Scheduler — your role is to select and order tasks to build the best possible day for the user.
 
         ═══ SCHEDULING WINDOWS ═══
         Date: %s, %s
@@ -84,12 +100,18 @@ class SchedulingPromptBuilder {
         %s
         ═══ FLEXIBLE TASK POOL (%d available) ═══
         %s
+        ═══ WEEKLY RECURRENCE STATUS ═══
+        %s
         ═══ ALREADY DONE TODAY ═══
         %s
         ═══ COMPLETION HISTORY (last 14 days) ═══
         %s
+        ═══ SKIPPED / MISSED HISTORY (last 14 days) ═══
+        %s
         ═══ RECENT PLAN CHANGES (last 7 days) ═══
         %s%s
+        ═══ CONNIE'S KNOWLEDGE OF THIS USER ═══
+        %s
         ═══ RULES ═══
         1. ADMIN tasks → energyZone = "OUTER" always. Never in DEEP_WINDOW.
         2. DEEP tasks → energyZone = "DEEP_WINDOW" always.
@@ -143,10 +165,13 @@ class SchedulingPromptBuilder {
                 todayRecurrence,
                 dailyGoalIds
             ),
+            buildWeeklyRecurrenceSection(flexibleTasks, date, dynamicRecurrenceMap, weeklyCountByTaskId),
             buildFrozenSection(frozenEntries),
             buildHistorySection(recentHistory),
+            buildSkipsSection(recentSkips),
             buildChangesSection(recentChanges),
             buildCycleFocusSection(cycleFocusGoalTitles),
+            buildConnieLogsSection(connieLogs),
             bufferMinutes,
             deepMinutes,
             bufferMinutes,
@@ -179,78 +204,81 @@ class SchedulingPromptBuilder {
         Set<Long> dailyGoalIds
     ) {
         if (tasks.isEmpty()) return "(none)\n";
-        return tasks
-            .stream()
-            .map(task -> {
-                var sb = new StringBuilder();
-                sb.append(
-                    "\n[%s] %s\n".formatted(task.getPid(), task.getTitle())
-                );
-                sb.append(
-                    "  Goal: \"%s\" | Type: %s | Energy: %s\n".formatted(
-                        task.getGoal().getTitle(),
-                        task.getGoal().getType(),
-                        task.getGoal().getEnergyLevel()
-                    )
-                );
-                sb.append(
-                    "  Priority: %s | Duration: %dmin | Flexibility: %s\n".formatted(
-                        task.getPriority(),
-                        task.getDurationMinutes() != null
-                            ? task.getDurationMinutes()
-                            : 60,
-                        task.getFlexibility()
-                    )
-                );
-
-                if (task.getDeadline() != null) {
-                    sb.append(
-                        "  Deadline: %s%s\n".formatted(
-                            task.getDeadline(),
-                            task.getDeadline().equals(date) ? " ⚠️ TODAY" : ""
-                        )
-                    );
-                }
-                if (task.getGoal().getTargetDate() != null) {
-                    sb.append(
-                        "  Goal target date: %s\n".formatted(
-                            task.getGoal().getTargetDate()
-                        )
-                    );
-                }
-                if (task.getNotes() != null && !task.getNotes().isBlank()) {
-                    sb.append("  Notes: %s\n".formatted(task.getNotes()));
-                }
-
-                GoalRecurrenceDay recDay = todayRecurrence.get(
-                    task.getGoal().getId()
-                );
-                if (recDay != null) {
-                    sb.append("  Recurring today");
-                    if (recDay.getPreferredTime() != null) sb.append(
-                        " at %s".formatted(recDay.getPreferredTime())
-                    );
-                    sb.append("\n");
-                } else if (dailyGoalIds.contains(task.getGoal().getId())) {
-                    sb.append("  Recurring today (daily habit)\n");
-                }
-
-                if (task.getMilestone() != null) {
-                    sb.append(
-                        "  Milestone: \"%s\" (position %d%s)\n".formatted(
-                            task.getMilestone().getTitle(),
-                            task.getMilestone().getPosition(),
-                            task.getMilestone().getStatus() ==
-                                MilestoneStatus.IN_PROGRESS
-                                ? ") ← current milestone"
-                                : ""
-                        )
-                    );
-                }
-
-                return sb.toString();
-            })
+        return tasks.stream()
+            .map(task -> buildTaskEntry(task, date, todayRecurrence, dailyGoalIds))
             .collect(Collectors.joining());
+    }
+
+    private String buildTaskEntry(
+        Task task,
+        LocalDate date,
+        Map<Long, GoalRecurrenceDay> todayRecurrence,
+        Set<Long> dailyGoalIds
+    ) {
+        List<String> lines = new ArrayList<>();
+        lines.add("\n[%s] %s".formatted(task.getPid(), task.getTitle()));
+        lines.add("  Goal: \"%s\" | Type: %s | Energy: %s".formatted(
+            task.getGoal().getTitle(), task.getGoal().getType(), task.getGoal().getEnergyLevel()));
+        lines.add("  Priority: %s | Duration: %dmin | Flexibility: %s".formatted(
+            task.getPriority(),
+            task.getDurationMinutes() != null ? task.getDurationMinutes() : 60,
+            task.getFlexibility()));
+
+        if (task.getDeadline() != null) {
+            lines.add("  Deadline: %s%s".formatted(
+                task.getDeadline(), task.getDeadline().equals(date) ? " ⚠️ TODAY" : ""));
+        }
+        if (task.getGoal().getTargetDate() != null) {
+            lines.add("  Goal target date: %s".formatted(task.getGoal().getTargetDate()));
+        }
+        if (task.getNotes() != null && !task.getNotes().isBlank()) {
+            lines.add("  Notes: %s".formatted(task.getNotes()));
+        }
+
+        GoalRecurrenceDay recDay = todayRecurrence.get(task.getGoal().getId());
+        if (recDay != null) {
+            String timeHint = recDay.getPreferredTime() != null
+                ? " at %s".formatted(recDay.getPreferredTime()) : "";
+            lines.add("  Recurring today%s".formatted(timeHint));
+        } else if (dailyGoalIds.contains(task.getGoal().getId())) {
+            lines.add("  Recurring today (daily habit)");
+        }
+
+        if (task.getMilestone() != null) {
+            String currentMarker = task.getMilestone().getStatus() == MilestoneStatus.IN_PROGRESS
+                ? " ← current milestone" : "";
+            lines.add("  Milestone: \"%s\" (position %d%s)".formatted(
+                task.getMilestone().getTitle(), task.getMilestone().getPosition(), currentMarker));
+        }
+
+        return lines.stream().collect(Collectors.joining("\n")) + "\n";
+    }
+
+    private String buildWeeklyRecurrenceSection(
+        List<Task> flexibleTasks,
+        LocalDate date,
+        Map<Long, GoalRecurrence> dynamicRecurrenceMap,
+        Map<Long, Integer> weeklyCountByTaskId
+    ) {
+        if (dynamicRecurrenceMap.isEmpty()) return "No dynamic-day habits in today's pool.\n";
+
+        LocalDate weekEnd = date.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        // +1 to include today itself as a remaining scheduling day
+        int daysRemaining = (int) (weekEnd.toEpochDay() - date.toEpochDay()) + 1;
+
+        return flexibleTasks.stream()
+            .filter(t -> dynamicRecurrenceMap.containsKey(t.getGoal().getId()))
+            .map(t -> {
+                GoalRecurrence rec = dynamicRecurrenceMap.get(t.getGoal().getId());
+                int quota = rec.getTimesPerPeriod() != null ? rec.getTimesPerPeriod() : 1;
+                int done = weeklyCountByTaskId.getOrDefault(t.getId(), 0);
+                int remaining = Math.max(0, quota - done);
+                String urgency = remaining > 0 && daysRemaining <= remaining
+                    ? " ⚠️ MUST schedule today to meet weekly quota" : "";
+                return "  \"%s\" — quota: %dx/week | scheduled so far: %d | still needed: %d | days left in week: %d%s"
+                    .formatted(t.getTitle(), quota, done, remaining, daysRemaining, urgency);
+            })
+            .collect(Collectors.joining("\n")) + "\n";
     }
 
     private String buildFrozenSection(List<DailyScheduleEntry> frozenEntries) {
@@ -278,7 +306,7 @@ class SchedulingPromptBuilder {
         ) return "No history yet — new user. Prefer shorter tasks and conservative estimates.\n";
         return recentHistory
             .stream()
-            .limit(20)
+            .limit(historyLimit)
             .map(t -> {
                 String actual = (t.getStartedAt() != null &&
                     t.getEndedAt() != null)
@@ -302,13 +330,27 @@ class SchedulingPromptBuilder {
             .collect(Collectors.joining());
     }
 
+    private String buildSkipsSection(List<Task> recentSkips) {
+        if (recentSkips == null || recentSkips.isEmpty())
+            return "No recent skips or misses.\n";
+        return recentSkips.stream()
+            .limit(historyLimit)
+            .map(t -> "  - \"%s\" (%s) — %s%s\n".formatted(
+                t.getTitle(),
+                t.getGoal().getTitle(),
+                t.getStatus(),
+                t.getMissReason() != null ? ": " + t.getMissReason() : ""
+            ))
+            .collect(Collectors.joining());
+    }
+
     private String buildChangesSection(List<ScheduleChange> recentChanges) {
         if (
             recentChanges.isEmpty()
         ) return "No recent changes — plan is stable.\n";
         return recentChanges
             .stream()
-            .limit(10)
+            .limit(changesLimit)
             .map(sc ->
                 "  - %s%s\n".formatted(
                     sc.getChangeType(),
@@ -316,6 +358,26 @@ class SchedulingPromptBuilder {
                 )
             )
             .collect(Collectors.joining());
+    }
+
+    private String buildConnieLogsSection(List<UserConnieLog> logs) {
+        if (logs == null || logs.isEmpty()) return "No patterns recorded yet.\n";
+        return logs.stream()
+            .map(log -> {
+                String label = log.getType() == UserConnieLogType.EVOLUTIONARY
+                    ? "Evolutionary summary (%s → %s, %d entries merged)".formatted(
+                        log.getPeriodStart(), log.getPeriodEnd(),
+                        log.getMergedCount() != null ? log.getMergedCount() : 0)
+                    : "Daily analysis (%s)".formatted(log.getPeriodStart());
+                List<String> parts = new ArrayList<>();
+                parts.add("  [%s]".formatted(label));
+                if (log.getObservedPatterns() != null && !log.getObservedPatterns().isBlank())
+                    parts.add("  Observed: %s".formatted(log.getObservedPatterns().strip()));
+                if (log.getStatedPreferences() != null && !log.getStatedPreferences().isBlank())
+                    parts.add("  Stated: %s".formatted(log.getStatedPreferences().strip()));
+                return parts.stream().collect(Collectors.joining("\n"));
+            })
+            .collect(Collectors.joining("\n\n")) + "\n";
     }
 
     private String buildCycleFocusSection(List<String> cycleFocusGoalTitles) {

@@ -1,6 +1,7 @@
 package com.rail.api.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rail.api.connie.ConnieProfileService;
 import com.rail.api.entity.Chat;
 import com.rail.api.entity.CycleFocus;
 import com.rail.api.entity.CycleStatus;
@@ -43,6 +44,7 @@ public class ConnieTools {
     private final GoalRepository goalRepository;
     private final CycleFocusRepository cycleFocusRepository;
     private final TaskRepository taskRepository;
+    private final ConnieProfileService connieProfileService;
     private final ObjectMapper objectMapper;
 
     @Tool(
@@ -273,13 +275,9 @@ public class ConnieTools {
             dropped.size(),
             chatPid
         );
-        StringBuilder result = new StringBuilder("Carry-overs resolved.");
-        if (kept > 0) result.append(" Kept ").append(kept).append(" task(s).");
-        if (!dropped.isEmpty()) result
-            .append(" Dropped: ")
-            .append(String.join(", ", dropped))
-            .append(".");
-        return result.toString();
+        String keptPart = kept > 0 ? " Kept %d task(s).".formatted(kept) : "";
+        String droppedPart = !dropped.isEmpty() ? " Dropped: %s.".formatted(String.join(", ", dropped)) : "";
+        return "Carry-overs resolved." + keptPart + droppedPart;
     }
 
     @Tool(
@@ -379,6 +377,46 @@ public class ConnieTools {
             chat.getUser().getPid()
         );
         return "Retro concluded. Cycle is now COMPLETED.";
+    }
+
+    @Tool(
+        description = """
+        Records a scheduling preference or behavioural pattern the user explicitly stated during conversation.
+        Call this when the user says something that reveals a clear, durable preference about how they want their time or tasks managed.
+        Examples: "I don't like gym on Mondays", "I prefer creative work in the mornings", "batch my admin on Fridays", "I work better with fewer tasks per day".
+        Do NOT call this for general conversation or vague statements — only for specific, actionable preferences the scheduler or planner should remember.
+        Returns "saved" on success or an ERROR: message on failure.
+        """
+    )
+    @Transactional
+    public String updatePreference(String preference, ToolContext toolContext) {
+        Object rawChatId =
+            toolContext != null
+                ? toolContext.getContext().get(CHAT_ID_KEY)
+                : null;
+        if (
+            rawChatId == null
+        ) return "ERROR: tool context missing — preference was NOT saved.";
+
+        UUID chatPid;
+        try {
+            chatPid = UUID.fromString(rawChatId.toString());
+        } catch (IllegalArgumentException e) {
+            return "ERROR: invalid chatId — preference was NOT saved.";
+        }
+
+        Chat chat = chatRepository.findByPid(chatPid).orElse(null);
+        if (
+            chat == null
+        ) return "ERROR: chat not found — preference was NOT saved.";
+
+        connieProfileService.appendStatedPreference(chat.getUser(), preference);
+
+        log.info(
+            "updatePreference: saved preference for user {}",
+            chat.getUser().getPid()
+        );
+        return "saved";
     }
 
     private boolean taskBelongsToUser(

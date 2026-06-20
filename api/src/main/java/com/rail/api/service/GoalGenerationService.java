@@ -216,7 +216,7 @@ public class GoalGenerationService {
                     .flexibilitySetBy(TaskFlexibilitySetBy.RAIL)
                     .priority(tb.priority())
                     .durationMinutes(
-                        tb.durationMinutes() != null ? tb.durationMinutes() : 30
+                        tb.durationMinutes() != null ? tb.durationMinutes() : 60
                     )
                     .fixedTime(parseLocalTime(tb.fixedTime()))
                     .deadline(parseLocalDate(tb.deadline()))
