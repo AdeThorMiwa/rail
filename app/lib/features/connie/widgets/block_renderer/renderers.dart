@@ -184,6 +184,7 @@ class _ActionsBlockRendererState extends ConsumerState<ActionsBlockRenderer> {
           backgroundColor: const Color(0xFFFF6B6B),
         ),
       );
+      setState(() => _isLoading = false);
     }
   }
 
