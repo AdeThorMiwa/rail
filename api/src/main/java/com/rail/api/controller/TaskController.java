@@ -5,14 +5,17 @@ import com.rail.api.dto.TaskDto;
 import com.rail.api.entity.TaskCompletionType;
 import com.rail.api.service.TaskService;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,6 +25,15 @@ public class TaskController {
 
     private final TaskService taskService;
     private final UserResolver userResolver;
+
+    @GetMapping
+    public List<TaskDto> list(
+        @AuthenticationPrincipal UUID userPid,
+        @RequestParam(required = false) UUID goalId,
+        @RequestParam(required = false) UUID milestoneId
+    ) {
+        return taskService.list(userResolver.resolve(userPid), goalId, milestoneId);
+    }
 
     public record CompleteTaskRequest(
         TaskCompletionType completionType,

@@ -11,6 +11,7 @@ import com.rail.api.repository.TaskRepository;
 import com.rail.api.repository.TaskTargetRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,6 +28,14 @@ public class TaskService {
     private final GoalRepository goalRepository;
     private final TaskCompletionService completionService;
     private final DtoMapper dtoMapper;
+
+    @Transactional(readOnly = true)
+    public List<TaskDto> list(User user, UUID goalPid, UUID milestonePid) {
+        return taskRepository.findByUserFiltered(user, goalPid, milestonePid)
+            .stream()
+            .map(dtoMapper::toTaskDto)
+            .toList();
+    }
 
     @Transactional
     public TaskDto complete(

@@ -6,6 +6,19 @@ class GoalsRepository {
 
   const GoalsRepository(this._client);
 
+  Future<List<TaskDetail>> listTasks({String? goalId, String? milestoneId}) async {
+    final res = await _client.dio.get(
+      '/tasks',
+      queryParameters: {
+        'goalId': goalId,
+        'milestoneId': milestoneId,
+      },
+    );
+    return (res.data as List)
+        .map((e) => TaskDetail.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<List<GoalListItem>> list() async {
     final res = await _client.dio.get('/goals');
     return (res.data as List)

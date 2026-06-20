@@ -29,3 +29,10 @@ final goalDetailProvider = FutureProvider.family<GoalDetail, String>((
 ) {
   return ref.watch(goalsRepositoryProvider).getDetail(goalPid);
 });
+
+final goalTasksProvider = FutureProvider.family<List<TaskDetail>, String>((
+  ref,
+  goalPid,
+) {
+  return ref.watch(goalsRepositoryProvider).listTasks(goalId: goalPid);
+});

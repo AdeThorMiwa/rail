@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
     Optional<Task> findByPid(UUID pid);
@@ -30,6 +31,23 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
         """
     )
     List<Task> findPendingTasksForUser(User owner);
+
+    @Query(
+        """
+            SELECT t FROM Task t
+            JOIN t.goal g
+            JOIN g.intention i
+            WHERE i.owner = :owner
+              AND (:goalPid IS NULL OR g.pid = :goalPid)
+              AND (:milestonePid IS NULL OR t.milestone.pid = :milestonePid)
+            ORDER BY t.priority ASC, t.createdAt ASC
+        """
+    )
+    List<Task> findByUserFiltered(
+        @Param("owner") User owner,
+        @Param("goalPid") UUID goalPid,
+        @Param("milestonePid") UUID milestonePid
+    );
 
     @Query(
         """
