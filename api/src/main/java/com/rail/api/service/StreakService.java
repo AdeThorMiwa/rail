@@ -39,7 +39,8 @@ public class StreakService {
     @Transactional(readOnly = true)
     public HabitStatsDto computeStats(Goal goal) {
         var owner = goal.getIntention().getOwner();
-        LocalDate today = profileRepository.findByUser(owner)
+        LocalDate today = profileRepository
+            .findByUser(owner)
             .map(p -> LocalDate.now(ZoneId.of(p.getTimezone())))
             .orElseGet(LocalDate::now);
         List<Task> tasks = taskRepository.findByGoal(goal);
@@ -48,35 +49,64 @@ public class StreakService {
         List<TaskOccurrence> allOccurrences =
             occurrenceRepository.findByTaskInOrderByOccurrenceDateDesc(tasks);
 
-        GoalRecurrence recurrence = recurrenceRepository.findByGoal(goal).orElse(null);
+        GoalRecurrence recurrence = recurrenceRepository
+            .findByGoal(goal)
+            .orElse(null);
         Set<DayOfWeek> scheduledDays = scheduledDays(recurrence);
-        int timesPerPeriod = recurrence != null ? recurrence.getTimesPerPeriod() : 7;
+        int timesPerPeriod =
+            recurrence != null ? recurrence.getTimesPerPeriod() : 7;
         GoalRecurrenceFrequency frequency =
-            recurrence != null ? recurrence.getFrequency() : GoalRecurrenceFrequency.DAILY;
+            recurrence != null
+                ? recurrence.getFrequency()
+                : GoalRecurrenceFrequency.DAILY;
 
-        Map<LocalDate, OccurrenceStatus> statusByDate = allOccurrences.stream()
-            .collect(Collectors.toMap(
-                TaskOccurrence::getOccurrenceDate,
-                TaskOccurrence::getStatus,
-                (a, b) -> a == OccurrenceStatus.DONE ? a : b
-            ));
+        Map<LocalDate, OccurrenceStatus> statusByDate = allOccurrences
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    TaskOccurrence::getOccurrenceDate,
+                    TaskOccurrence::getStatus,
+                    (a, b) -> a == OccurrenceStatus.DONE ? a : b
+                )
+            );
 
-        boolean weeklyMode = frequency == GoalRecurrenceFrequency.WEEKLY && scheduledDays.isEmpty();
+        boolean weeklyMode =
+            frequency == GoalRecurrenceFrequency.WEEKLY &&
+            scheduledDays.isEmpty();
 
         int currentStreak = weeklyMode
             ? computeWeeklyCurrentStreak(statusByDate, timesPerPeriod, today)
-            : computeDailyCurrentStreak(statusByDate, scheduledDays, today, frequency == GoalRecurrenceFrequency.DAILY);
+            : computeDailyCurrentStreak(
+                  statusByDate,
+                  scheduledDays,
+                  today,
+                  frequency == GoalRecurrenceFrequency.DAILY
+              );
 
         int bestStreak = weeklyMode
             ? computeWeeklyBestStreak(statusByDate, timesPerPeriod, today)
-            : computeDailyBestStreak(statusByDate, scheduledDays, today, frequency == GoalRecurrenceFrequency.DAILY);
+            : computeDailyBestStreak(
+                  statusByDate,
+                  scheduledDays,
+                  today,
+                  frequency == GoalRecurrenceFrequency.DAILY
+              );
 
-        LocalDate weekStart = today.with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1);
-        int thisWeekDone = 0, missedThisWeek = 0;
+        LocalDate weekStart = today.with(
+            WeekFields.of(Locale.getDefault()).dayOfWeek(),
+            1
+        );
+        int thisWeekDone = 0,
+            missedThisWeek = 0;
         List<String> weekDots = new ArrayList<>();
+        LocalDate goalCreatedAt = LocalDate.from(goal.getCreatedAt());
         for (int i = 0; i < 7; i++) {
             LocalDate day = weekStart.plusDays(i);
-            boolean isScheduled = scheduledDays.isEmpty() || scheduledDays.contains(day.getDayOfWeek());
+            if (day.isBefore(goalCreatedAt)) continue;
+
+            boolean isScheduled =
+                scheduledDays.isEmpty() ||
+                scheduledDays.contains(day.getDayOfWeek());
             if (day.isAfter(today)) {
                 weekDots.add("UPCOMING");
             } else if (day.equals(today)) {
@@ -104,7 +134,9 @@ public class StreakService {
         List<String> monthDots = new ArrayList<>();
         for (int i = 29; i >= 0; i--) {
             LocalDate day = today.minusDays(i);
-            boolean isScheduled = scheduledDays.isEmpty() || scheduledDays.contains(day.getDayOfWeek());
+            boolean isScheduled =
+                scheduledDays.isEmpty() ||
+                scheduledDays.contains(day.getDayOfWeek());
             if (day.isAfter(today)) {
                 monthDots.add("UPCOMING");
             } else if (day.equals(today)) {
@@ -122,20 +154,45 @@ public class StreakService {
             }
         }
 
-        long totalScheduledPast = countScheduledDaysPast(scheduledDays, today, allOccurrences);
-        long totalDone = allOccurrences.stream().filter(o -> o.getStatus() == OccurrenceStatus.DONE).count();
-        double allTimeRate = totalScheduledPast > 0 ? (double) totalDone / totalScheduledPast : 0.0;
+        long totalScheduledPast = countScheduledDaysPast(
+            scheduledDays,
+            today,
+            allOccurrences
+        );
+        long totalDone = allOccurrences
+            .stream()
+            .filter(o -> o.getStatus() == OccurrenceStatus.DONE)
+            .count();
+        double allTimeRate =
+            totalScheduledPast > 0
+                ? (double) totalDone / totalScheduledPast
+                : 0.0;
 
-        int scheduledThisWeek = (int) weekDots.stream().filter(d -> !d.equals("UPCOMING")).count();
-        double thisWeekRate = scheduledThisWeek > 0 ? (double) thisWeekDone / scheduledThisWeek : 0.0;
+        int scheduledThisWeek = (int) weekDots
+            .stream()
+            .filter(d -> !d.equals("UPCOMING"))
+            .count();
+        double thisWeekRate =
+            scheduledThisWeek > 0
+                ? (double) thisWeekDone / scheduledThisWeek
+                : 0.0;
 
-        int slipsTotal = (int) allOccurrences.stream().filter(o -> o.getStatus() == OccurrenceStatus.MISSED).count();
+        int slipsTotal = (int) allOccurrences
+            .stream()
+            .filter(o -> o.getStatus() == OccurrenceStatus.MISSED)
+            .count();
 
         return new HabitStatsDto(
-            currentStreak, bestStreak,
-            thisWeekDone, timesPerPeriod, missedThisWeek,
-            thisWeekRate, allTimeRate,
-            weekDots, monthDots, slipsTotal
+            currentStreak,
+            bestStreak,
+            thisWeekDone,
+            timesPerPeriod,
+            missedThisWeek,
+            thisWeekRate,
+            allTimeRate,
+            weekDots,
+            monthDots,
+            slipsTotal
         );
     }
 
@@ -151,7 +208,9 @@ public class StreakService {
         boolean graceUsed = false;
         for (int i = 0; i < 365; i++) {
             LocalDate day = today.minusDays(i + 1);
-            boolean isScheduled = scheduledDays.isEmpty() || scheduledDays.contains(day.getDayOfWeek());
+            boolean isScheduled =
+                scheduledDays.isEmpty() ||
+                scheduledDays.contains(day.getDayOfWeek());
             if (!isScheduled) continue;
             if (statusByDate.getOrDefault(day, null) == OccurrenceStatus.DONE) {
                 streak++;
@@ -162,7 +221,9 @@ public class StreakService {
                 break;
             }
         }
-        if (statusByDate.getOrDefault(today, null) == OccurrenceStatus.DONE) streak++;
+        if (
+            statusByDate.getOrDefault(today, null) == OccurrenceStatus.DONE
+        ) streak++;
         return streak;
     }
 
@@ -173,14 +234,26 @@ public class StreakService {
         boolean graceAllowed
     ) {
         if (statusByDate.isEmpty()) return 0;
-        LocalDate earliest = statusByDate.keySet().stream().min(LocalDate::compareTo).orElse(today);
-        int best = 0, current = 0;
+        LocalDate earliest = statusByDate
+            .keySet()
+            .stream()
+            .min(LocalDate::compareTo)
+            .orElse(today);
+        int best = 0,
+            current = 0;
         boolean graceUsed = false;
         LocalDate cursor = earliest;
         while (!cursor.isAfter(today)) {
-            boolean isScheduled = scheduledDays.isEmpty() || scheduledDays.contains(cursor.getDayOfWeek());
-            if (!isScheduled) { cursor = cursor.plusDays(1); continue; }
-            if (statusByDate.getOrDefault(cursor, null) == OccurrenceStatus.DONE) {
+            boolean isScheduled =
+                scheduledDays.isEmpty() ||
+                scheduledDays.contains(cursor.getDayOfWeek());
+            if (!isScheduled) {
+                cursor = cursor.plusDays(1);
+                continue;
+            }
+            if (
+                statusByDate.getOrDefault(cursor, null) == OccurrenceStatus.DONE
+            ) {
                 current++;
                 best = Math.max(best, current);
                 graceUsed = false;
@@ -207,13 +280,18 @@ public class StreakService {
         int streak = 0;
 
         // Count current week
-        if (doneCountInWeek(statusByDate, weekStart, today) >= timesPerPeriod) streak++;
+        if (
+            doneCountInWeek(statusByDate, weekStart, today) >= timesPerPeriod
+        ) streak++;
 
         // Walk back through prior complete weeks
         for (int w = 1; w <= 52; w++) {
             LocalDate prevStart = weekStart.minusWeeks(w);
             LocalDate prevEnd = prevStart.plusDays(6);
-            if (doneCountInWeek(statusByDate, prevStart, prevEnd) >= timesPerPeriod) {
+            if (
+                doneCountInWeek(statusByDate, prevStart, prevEnd) >=
+                timesPerPeriod
+            ) {
                 streak++;
             } else {
                 break;
@@ -229,13 +307,20 @@ public class StreakService {
     ) {
         if (statusByDate.isEmpty()) return 0;
         WeekFields wf = WeekFields.of(Locale.getDefault());
-        LocalDate earliest = statusByDate.keySet().stream().min(LocalDate::compareTo).orElse(today);
+        LocalDate earliest = statusByDate
+            .keySet()
+            .stream()
+            .min(LocalDate::compareTo)
+            .orElse(today);
         LocalDate firstWeekStart = earliest.with(wf.dayOfWeek(), 1);
         LocalDate currentWeekStart = today.with(wf.dayOfWeek(), 1);
-        int best = 0, current = 0;
+        int best = 0,
+            current = 0;
         LocalDate cursor = firstWeekStart;
         while (!cursor.isAfter(currentWeekStart)) {
-            LocalDate end = cursor.equals(currentWeekStart) ? today : cursor.plusDays(6);
+            LocalDate end = cursor.equals(currentWeekStart)
+                ? today
+                : cursor.plusDays(6);
             if (doneCountInWeek(statusByDate, cursor, end) >= timesPerPeriod) {
                 current++;
                 best = Math.max(best, current);
@@ -247,11 +332,17 @@ public class StreakService {
         return best;
     }
 
-    private int doneCountInWeek(Map<LocalDate, OccurrenceStatus> statusByDate, LocalDate start, LocalDate end) {
+    private int doneCountInWeek(
+        Map<LocalDate, OccurrenceStatus> statusByDate,
+        LocalDate start,
+        LocalDate end
+    ) {
         int count = 0;
         LocalDate d = start;
         while (!d.isAfter(end)) {
-            if (statusByDate.getOrDefault(d, null) == OccurrenceStatus.DONE) count++;
+            if (
+                statusByDate.getOrDefault(d, null) == OccurrenceStatus.DONE
+            ) count++;
             d = d.plusDays(1);
         }
         return count;
@@ -265,14 +356,18 @@ public class StreakService {
         List<TaskOccurrence> allOccurrences
     ) {
         if (allOccurrences.isEmpty()) return 0;
-        LocalDate earliest = allOccurrences.stream()
+        LocalDate earliest = allOccurrences
+            .stream()
             .map(TaskOccurrence::getOccurrenceDate)
             .min(LocalDate::compareTo)
             .orElse(today);
         long count = 0;
         LocalDate cursor = earliest;
         while (!cursor.isAfter(today)) {
-            if (scheduledDays.isEmpty() || scheduledDays.contains(cursor.getDayOfWeek())) count++;
+            if (
+                scheduledDays.isEmpty() ||
+                scheduledDays.contains(cursor.getDayOfWeek())
+            ) count++;
             cursor = cursor.plusDays(1);
         }
         return count;
@@ -280,8 +375,11 @@ public class StreakService {
 
     private Set<DayOfWeek> scheduledDays(GoalRecurrence recurrence) {
         if (recurrence == null) return Set.of();
-        if (recurrence.getFrequency() == GoalRecurrenceFrequency.DAILY) return Set.of();
-        return recurrenceDayRepository.findByGoalRecurrence(recurrence)
+        if (
+            recurrence.getFrequency() == GoalRecurrenceFrequency.DAILY
+        ) return Set.of();
+        return recurrenceDayRepository
+            .findByGoalRecurrence(recurrence)
             .stream()
             .map(rd -> rd.getDayOfWeek())
             .collect(Collectors.toSet());
@@ -291,7 +389,8 @@ public class StreakService {
         GoalRecurrence rec = recurrenceRepository.findByGoal(goal).orElse(null);
         if (rec == null) return false;
         if (rec.getFrequency() == GoalRecurrenceFrequency.DAILY) return true;
-        return recurrenceDayRepository.findByGoalRecurrence(rec)
+        return recurrenceDayRepository
+            .findByGoalRecurrence(rec)
             .stream()
             .anyMatch(rd -> rd.getDayOfWeek() == today);
     }
