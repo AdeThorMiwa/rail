@@ -12,6 +12,7 @@ STORIES.md
 GOALS.md
 DESIGN.md
 CHECKLIST.md
+ALARM_DESIGN.md
 
 # ── OS ──────────────────────────────────────────────────────────────────────
 .DS_Store
@@ -71,6 +72,7 @@ app/**/doc/api/
 app/**/ios/Flutter/.last_build_id
 app/app.*.symbols
 app/app.*.map.json
+problems-report.html
 
 # ── Android ──────────────────────────────────────────────────────────────────
 app/android/.gradle/
