@@ -1,3 +1,4 @@
+import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,7 +12,14 @@ import 'features/connie/providers/entity_chat_provider.dart';
 import 'features/connie/providers/goal_chat_provider.dart';
 import 'features/cycles/providers/cycle_provider.dart';
 import 'features/home/providers/home_provider.dart';
+import 'features/home/widgets/alarm_screen.dart';
 import 'features/intentions/providers/goals_provider.dart';
+
+final _alarmRingProvider = StreamProvider<AlarmSettings>((ref) {
+  return Alarm.ringStream.stream;
+});
+
+final activeAlarmProvider = StateProvider<AlarmSettings?>((_) => null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +34,12 @@ class RailApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     ref.watch(sseConnectionManagerProvider);
+
+    ref.listen(_alarmRingProvider, (_, next) {
+      next.whenData((settings) {
+        ref.read(activeAlarmProvider.notifier).state = settings;
+      });
+    });
 
     ref.listen(authProvider, (prev, next) {
       final wasAuthenticated = prev?.valueOrNull is AuthAuthenticated;
@@ -63,7 +77,51 @@ class RailApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       routerConfig: router,
+      builder: (context, child) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final activeAlarm = ref.watch(activeAlarmProvider);
+            final base = child ?? const SizedBox.shrink();
+
+            if (activeAlarm == null) return base;
+
+            // Find the matching pending entry to get ring duration
+            // We store ring duration alongside the alarm settings via a lookup
+            final ringSeconds = _ringSecondsFor(activeAlarm.id, ref);
+
+            return Stack(
+              children: [
+                base,
+                Positioned.fill(
+                  child: AlarmScreen(
+                    alarmSettings: activeAlarm,
+                    ringSeconds: ringSeconds,
+                    onDismiss: () async {
+                      await Alarm.stop(activeAlarm.id);
+                      ref.read(activeAlarmProvider.notifier).state = null;
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
+  }
+
+  int _ringSecondsFor(int alarmId, WidgetRef ref) {
+    if (alarmId == 1000) return AlarmScheduler.wakeRingSeconds;
+
+    final schedule = ref.read(todayScheduleProvider).valueOrNull;
+    if (schedule == null) return AlarmScheduler.maxRingSeconds;
+
+    final entries = schedule.taskEntries;
+    final index = alarmId - 1; // taskAlarmBase = 1
+    if (index >= 0 && index < entries.length) {
+      return AlarmScheduler.ringSecondsForEntry(entries[index]);
+    }
+    return AlarmScheduler.maxRingSeconds;
   }
 
   ThemeData _buildTheme() {

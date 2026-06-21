@@ -82,6 +82,13 @@ public class IntentionService {
             );
         }
 
+        if (proposal.getSynthesis().goal() == null) {
+            throw new ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Proposal is incomplete — continue the conversation with Connie to finish setting up the goal"
+            );
+        }
+
         Intention intention = generationService.generateFromProposal(
             user,
             proposal

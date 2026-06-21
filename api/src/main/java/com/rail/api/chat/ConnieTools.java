@@ -50,7 +50,8 @@ public class ConnieTools {
     @Tool(
         description = """
         Saves the current understanding of the user's intention to the database.
-        Call this only when you have gathered meaningful new information worth persisting — not every turn.
+        Call this only when the synthesis is COMPLETE — both intention AND goal fields must be fully populated.
+        A null or missing goal field is NOT valid; wait until you have enough information to fill both fields.
         DO NOT try to create multiple proposals at once! Only one active proposal can exist at once.
         """
     )
@@ -58,6 +59,15 @@ public class ConnieTools {
         IntentionSynthesis synthesis,
         ToolContext toolContext
     ) {
+        log.info("updateProposal called — intention={}, goal={}",
+            synthesis != null && synthesis.intention() != null ? synthesis.intention().title() : "null",
+            synthesis != null ? synthesis.goal() : "null (synthesis itself is null)");
+
+        if (synthesis == null || synthesis.goal() == null) {
+            log.warn("updateProposal rejected — goal is null. intention={}",
+                synthesis != null && synthesis.intention() != null ? synthesis.intention().title() : "null");
+            return "ERROR: synthesis is incomplete (goal is missing) — proposal was NOT saved. Gather more information before calling updateProposal. Do NOT show a confirm button.";
+        }
         Object rawChatId =
             toolContext != null
                 ? toolContext.getContext().get(CHAT_ID_KEY)
@@ -91,7 +101,11 @@ public class ConnieTools {
         proposalRepository.saveAndFlush(proposal);
 
         String pid = proposal.getPid().toString();
-        log.info("updateProposal: saved proposal {} for chat {}", pid, chatPid);
+        log.info("updateProposal: saved proposal {} — goalType={}, tasks={}, recurrence={}",
+            pid,
+            synthesis.goal().goalType(),
+            synthesis.goal().tasks() != null ? synthesis.goal().tasks().size() : 0,
+            synthesis.goal().recurrence());
         return pid;
     }
 

@@ -19,18 +19,13 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Plugin subprojects may target older compileSdk versions whose transitive
+// dependencies now require SDK 34+. Override after each subproject evaluates,
+// skipping :app which manages its own settings.
 subprojects {
-    plugins.withId("com.android.library") {
-        extensions.configure<com.android.build.api.dsl.LibraryExtension> {
-            compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
-            }
-        }
-    }
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    if (name != "app") {
+        afterEvaluate {
+            extensions.findByType<com.android.build.api.dsl.LibraryExtension>()?.compileSdk = 34
         }
     }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/notifications/notifications_provider.dart';
+import '../../../core/notifications/alarm_scheduler.dart';
 import '../../../core/widgets/connie_fab.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../scheduling/data/models/scheduling_models.dart';
@@ -35,6 +36,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _timer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AlarmScheduler.requestMissingPermissions();
     });
   }
 
