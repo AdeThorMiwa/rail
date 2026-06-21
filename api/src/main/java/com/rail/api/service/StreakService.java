@@ -39,10 +39,11 @@ public class StreakService {
     @Transactional(readOnly = true)
     public HabitStatsDto computeStats(Goal goal) {
         var owner = goal.getIntention().getOwner();
-        LocalDate today = profileRepository
+        ZoneId zone = profileRepository
             .findByUser(owner)
-            .map(p -> LocalDate.now(ZoneId.of(p.getTimezone())))
-            .orElseGet(LocalDate::now);
+            .map(p -> ZoneId.of(p.getTimezone()))
+            .orElse(ZoneId.of("UTC"));
+        LocalDate today = LocalDate.now(zone);
         List<Task> tasks = taskRepository.findByGoal(goal);
         if (tasks.isEmpty()) return empty(today);
 
@@ -99,7 +100,7 @@ public class StreakService {
         int thisWeekDone = 0,
             missedThisWeek = 0;
         List<String> weekDots = new ArrayList<>();
-        LocalDate goalCreatedAt = LocalDate.from(goal.getCreatedAt());
+        LocalDate goalCreatedAt = goal.getCreatedAt().atZone(zone).toLocalDate();
         for (int i = 0; i < 7; i++) {
             LocalDate day = weekStart.plusDays(i);
             if (day.isBefore(goalCreatedAt)) continue;
