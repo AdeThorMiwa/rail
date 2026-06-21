@@ -34,6 +34,7 @@ public class IntentionGenerationService {
                 .title(ib.title())
                 .type(ib.intentionType())
                 .completionCriteria(ib.completionCriteria())
+                .context(proposal.getContext())
                 .status(IntentionStatus.ACTIVE)
                 .build()
         );

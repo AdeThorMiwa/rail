@@ -36,4 +36,6 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
     );
 
     Optional<Goal> findByPid(UUID pid);
+
+    List<Goal> findByIntentionAndStatusOrderByCreatedAtAsc(Intention intention, GoalStatus status);
 }

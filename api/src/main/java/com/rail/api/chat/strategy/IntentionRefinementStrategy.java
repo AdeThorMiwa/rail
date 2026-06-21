@@ -229,6 +229,7 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         6. Does any text value contain a literal double-quote character (")? If yes, escape it as \\".
         7. Does any text value contain a markdown table (|)? If yes, remove it and use a table block instead.
         8. Am i responding with a response that moves the conversation forward!
+        9. If this response includes a confirm button — did the updateProposal call include a non-empty `context` field? If no, DO NOT include the confirm button. Call updateProposal again with context set before proceeding. There are no exceptions to this rule.
         Fix every issue before returning.
 
         AVAILABLE COMMANDS (set mode accordingly):
@@ -310,6 +311,15 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         When you have enough information to fill in the complete synthesis with no ambiguity remaining,
         call updateProposal immediately — do NOT ask the user for permission to save first.
         updateProposal is an internal tool call you make on your own judgment, not a user action.
+
+        CONTEXT REQUIREMENT — this is mandatory before showing a confirmation screen:
+        Every updateProposal call that is followed by a confirmation screen MUST include a non-empty
+        `context` field. Write a lossless, detailed, comprehensive plain-text narrative covering
+        everything the user shared: their ultimate goal, motivations, background, any documents or
+        PRDs they pasted, constraints, nuances, edge cases, and anything else that would help Rail
+        generate better goals for this intention in the future. Do NOT abbreviate. This context is
+        the permanent memory of this refinement conversation — it must stand alone without the
+        chat history.
 
         After a successful updateProposal call, respond with a confirmation screen:
         1. A text block summarising the intention and what the first goal will focus on

@@ -14,6 +14,7 @@ import com.rail.api.entity.Task;
 import com.rail.api.entity.TaskOccurrence;
 import com.rail.api.entity.TaskStatus;
 import com.rail.api.entity.User;
+import com.rail.api.event.GoalCompletedEvent;
 import com.rail.api.event.ScheduleChangeEvent;
 import com.rail.api.repository.DailyScheduleEntryRepository;
 import com.rail.api.repository.DailyScheduleRepository;
@@ -57,7 +58,8 @@ public class GoalService {
 
     @Transactional(readOnly = true)
     public List<GoalDto> list(User user) {
-        return goalRepository.findByOwnerAndStatus(user, com.rail.api.entity.GoalStatus.ACTIVE)
+        return goalRepository
+            .findByOwnerAndStatus(user, com.rail.api.entity.GoalStatus.ACTIVE)
             .stream()
             .map(goal -> toDto(goal, user))
             .toList();
@@ -65,7 +67,8 @@ public class GoalService {
 
     private GoalDto toDto(Goal goal, User user) {
         var milestones = milestoneRepository.findByGoalOrderByPosition(goal);
-        var today = profileRepository.findByUser(user)
+        var today = profileRepository
+            .findByUser(user)
             .map(p -> LocalDate.now(ZoneId.of(p.getTimezone())))
             .orElseGet(LocalDate::now);
         var todaysTasks = dailyScheduleEntryRepository
@@ -76,13 +79,20 @@ public class GoalService {
         var target = goalTargetRepository
             .findByGoal(goal)
             .map(gt -> {
-                var current = taskTargetRepository.sumActualValueByGoalAndTaskStatus(
-                    goal, TaskStatus.DONE
+                var current =
+                    taskTargetRepository.sumActualValueByGoalAndTaskStatus(
+                        goal,
+                        TaskStatus.DONE
+                    );
+                return new GoalTargetDto(
+                    gt.getTargetValue(),
+                    current,
+                    gt.getUnit()
                 );
-                return new GoalTargetDto(gt.getTargetValue(), current, gt.getUnit());
             })
             .orElse(null);
-        var habitStats = (goal.getType() == GoalType.HABIT || goal.getType() == GoalType.ABSTINENCE)
+        var habitStats = (goal.getType() == GoalType.HABIT ||
+            goal.getType() == GoalType.ABSTINENCE)
             ? streakService.computeStats(goal)
             : null;
         return dtoMapper.toGoalDto(
@@ -100,21 +110,49 @@ public class GoalService {
         var goal = goalRepository
             .findByPidAndOwner(goalPid, user)
             .orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found")
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Goal not found"
+                )
             );
         return toDto(goal, user);
     }
 
     @Transactional
-    public void complete(User user, UUID goalPid) {
+    public void complete(User user, UUID goalPid, String completionNotes) {
         Goal goal = goalRepository
             .findByPidAndOwner(goalPid, user)
             .orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found")
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Goal not found"
+                )
             );
+        finishGoal(goal, completionNotes);
+    }
+
+    @Transactional
+    public void finishGoal(Goal goal, String completionNotes) {
+        long actualMinutes = taskRepository
+            .findByGoalAndStatus(goal, TaskStatus.DONE)
+            .stream()
+            .mapToLong(t ->
+                t.getDurationMinutes() != null ? t.getDurationMinutes() : 0
+            )
+            .sum();
+        goal.setActualTotalHours(actualMinutes / 60L);
+        if (completionNotes != null && !completionNotes.isBlank()) {
+            goal.setCompletionNotes(completionNotes);
+        }
         goal.setStatus(com.rail.api.entity.GoalStatus.COMPLETED);
         goal.setCompletedAt(java.time.Instant.now());
-        goalRepository.save(goal);
+        goalRepository.saveAndFlush(goal);
+        eventPublisher.publishEvent(
+            new GoalCompletedEvent(
+                goal.getIntention().getOwner(),
+                goal.getPid()
+            )
+        );
     }
 
     @Transactional
@@ -141,7 +179,8 @@ public class GoalService {
             "No tasks for this goal"
         );
 
-        LocalDate today = profileRepository.findByUser(user)
+        LocalDate today = profileRepository
+            .findByUser(user)
             .map(p -> LocalDate.now(ZoneId.of(p.getTimezone())))
             .orElseGet(LocalDate::now);
         Task task = tasks.get(0);

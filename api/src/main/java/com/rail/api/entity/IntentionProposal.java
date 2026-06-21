@@ -37,6 +37,9 @@ public class IntentionProposal extends PublicEntity {
     @Column(columnDefinition = "jsonb")
     private IntentionSynthesis synthesis;
 
+    @Column(columnDefinition = "TEXT")
+    private String context;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default

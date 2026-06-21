@@ -81,7 +81,7 @@ class ProjectGoalDetail extends ConsumerWidget {
                 ...orphanTasks.valueOrNull!.map((t) => TaskTimelineRow(task: t)),
               ],
               const SizedBox(height: 20),
-              if (allDone) const GoalCompleteCta(),
+              if (allDone) GoalCompleteCta(goalPid: goal.pid),
               const SizedBox(height: 40),
             ],
           ),

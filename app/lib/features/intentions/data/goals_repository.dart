@@ -39,7 +39,10 @@ class GoalsRepository {
     await _client.dio.post('/goals/$goalPid/slip', data: {'note': note});
   }
 
-  Future<void> completeGoal(String goalPid) async {
-    await _client.dio.post('/goals/$goalPid/complete');
+  Future<void> completeGoal(String goalPid, {String? notes}) async {
+    await _client.dio.post(
+      '/goals/$goalPid/complete',
+      data: notes != null && notes.isNotEmpty ? {'notes': notes} : null,
+    );
   }
 }

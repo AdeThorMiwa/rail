@@ -53,15 +53,24 @@ public class ConnieTools {
         Call this only when the synthesis is COMPLETE — both intention AND goal fields must be fully populated.
         A null or missing goal field is NOT valid; wait until you have enough information to fill both fields.
         DO NOT try to create multiple proposals at once! Only one active proposal can exist at once.
+
+        context: A lossless, detailed, comprehensive plain-text summary of everything the user shared
+        during this refinement conversation — their goals, motivations, constraints, background, any
+        documents or PRDs they pasted, nuances, edge cases, and any other information that would help
+        Rail generate better goals for this intention in the future. Write it as a rich narrative, not
+        a bullet list. This field is REQUIRED when showing a confirmation screen — do not include a
+        Confirm Intention button if context is null or blank.
         """
     )
     public String updateProposal(
         IntentionSynthesis synthesis,
+        String context,
         ToolContext toolContext
     ) {
-        log.info("updateProposal called — intention={}, goal={}",
+        log.info("updateProposal called — intention={}, goal={}, hasContext={}",
             synthesis != null && synthesis.intention() != null ? synthesis.intention().title() : "null",
-            synthesis != null ? synthesis.goal() : "null (synthesis itself is null)");
+            synthesis != null ? synthesis.goal() : "null (synthesis itself is null)",
+            context != null && !context.isBlank());
 
         if (synthesis == null || synthesis.goal() == null) {
             log.warn("updateProposal rejected — goal is null. intention={}",
@@ -98,6 +107,9 @@ public class ConnieTools {
 
         IntentionProposal proposal = resolve(chat);
         proposal.setSynthesis(synthesis);
+        if (context != null && !context.isBlank()) {
+            proposal.setContext(context);
+        }
         proposalRepository.saveAndFlush(proposal);
 
         String pid = proposal.getPid().toString();

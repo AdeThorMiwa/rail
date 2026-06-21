@@ -47,12 +47,15 @@ public class GoalController {
         return chatService.getGoalActivity(userResolver.resolve(userPid), pid);
     }
 
+    public record CompleteRequest(String notes) {}
+
     @PostMapping("/{pid}/complete")
     public ResponseEntity<Void> complete(
         @AuthenticationPrincipal UUID userPid,
-        @PathVariable UUID pid
+        @PathVariable UUID pid,
+        @RequestBody(required = false) CompleteRequest body
     ) {
-        goalService.complete(userResolver.resolve(userPid), pid);
+        goalService.complete(userResolver.resolve(userPid), pid, body != null ? body.notes() : null);
         return ResponseEntity.noContent().build();
     }
 

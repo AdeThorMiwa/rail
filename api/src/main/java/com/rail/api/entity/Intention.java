@@ -40,6 +40,9 @@ public class Intention extends PublicEntity {
     @Column(columnDefinition = "TEXT")
     private String completionCriteria;
 
+    @Column(columnDefinition = "TEXT")
+    private String context;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private IntentionType type;

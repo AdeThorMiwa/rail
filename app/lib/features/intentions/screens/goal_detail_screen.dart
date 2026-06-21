@@ -13,6 +13,7 @@ class GoalDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(intentionEventListenerProvider);
     final state = ref.watch(goalDetailProvider(goalPid));
 
     return Scaffold(

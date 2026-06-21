@@ -1,0 +1,2 @@
+ALTER TABLE intention_proposals ADD COLUMN IF NOT EXISTS context TEXT;
+ALTER TABLE intentions ADD COLUMN IF NOT EXISTS context TEXT;
