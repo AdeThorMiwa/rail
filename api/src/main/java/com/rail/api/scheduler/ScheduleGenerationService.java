@@ -1,12 +1,13 @@
 package com.rail.api.scheduler;
 
+import com.rail.api.entity.DailySchedule;
+import com.rail.api.entity.DailyScheduleStatus;
 import com.rail.api.entity.User;
-import com.rail.api.entity.UserSchedulingProfile;
+import com.rail.api.repository.DailyScheduleRepository;
 import com.rail.api.repository.UserSchedulingProfileRepository;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -18,46 +19,71 @@ import org.springframework.stereotype.Service;
 public class ScheduleGenerationService {
 
     private final UserSchedulingProfileRepository profileRepository;
-    private final ScheduleInitService scheduleInitService;
+    private final DailyScheduleRepository scheduleRepository;
+    private final ScheduleGenerationLock lock;
     private final DailyScheduler dailyScheduler;
 
-    /**
-     * Called on-demand (e.g. from /schedule/today). No time-window guard — generates immediately.
-     */
+    public LocalDate todayFor(User user) {
+        return profileRepository
+            .findByUser(user)
+            .map(p -> LocalDate.now(ZoneId.of(p.getTimezone())))
+            .orElse(LocalDate.now());
+    }
+
+    public DailySchedule createNew(User user, LocalDate date) {
+        return scheduleRepository.saveAndFlush(
+            DailySchedule.builder()
+                .user(user)
+                .scheduledDate(date)
+                .generatedAt(Instant.now())
+                .status(DailyScheduleStatus.GENERATING)
+                .build()
+        );
+    }
+
+    public DailySchedule resetToGenerating(DailySchedule schedule) {
+        schedule.setStatus(DailyScheduleStatus.GENERATING);
+        schedule.setGeneratedAt(Instant.now());
+        return scheduleRepository.saveAndFlush(schedule);
+    }
+
+    public void markFailed(DailySchedule schedule) {
+        schedule.setStatus(DailyScheduleStatus.FAILED);
+        scheduleRepository.save(schedule);
+    }
+
     @Async
-    public void generateTodayIfMissing(User user) {
-        generateForUser(user, false, 0);
-    }
-
-    /**
-     * Called from the cron job. Skips if the user's local time hasn't reached wakeTime - offsetHours.
-     */
-    public boolean generateIfWithinWindow(User user, int wakeTriggerOffsetHours) {
-        return generateForUser(user, true, wakeTriggerOffsetHours);
-    }
-
-    private boolean generateForUser(User user, boolean enforceTimeWindow, int wakeTriggerOffsetHours) {
-        Optional<UserSchedulingProfile> profileOpt = profileRepository.findByUser(user);
-        ZoneId zone = profileOpt.map(p -> ZoneId.of(p.getTimezone())).orElse(ZoneId.of("UTC"));
-        LocalDate today = LocalDate.now(zone);
-
-        if (enforceTimeWindow && profileOpt.isPresent()) {
-            LocalTime now = LocalTime.now(zone);
-            LocalTime triggerTime = profileOpt.get().getWakeTime().minusHours(wakeTriggerOffsetHours);
-            if (now.isBefore(triggerTime)) return false;
-        }
-
-        if (!scheduleInitService.markGenerating(user, today)) {
-            log.info("[scheduler] schedule already exists or generating for user={}", user.getPid());
-            return false;
+    public void generateAsync(User user, LocalDate date) {
+        if (!lock.tryAcquire(user.getPid(), date)) {
+            log.info(
+                "[scheduler] generation already in progress user={} date={}",
+                user.getPid(),
+                date
+            );
+            return;
         }
         try {
-            log.info("[scheduler] generating schedule for user={} date={}", user.getPid(), today);
-            dailyScheduler.recompute(user, today);
-            return true;
+            log.info(
+                "[scheduler] generation started user={} date={}",
+                user.getPid(),
+                date
+            );
+            dailyScheduler.recompute(user, date);
         } catch (Exception e) {
-            log.error("[scheduler] schedule generation failed for user={}: {}", user.getPid(), e.getMessage(), e);
-            return false;
+            log.error(
+                "[scheduler] generation failed user={} date={}: {}",
+                user.getPid(),
+                date,
+                e.getMessage(),
+                e
+            );
+            scheduleRepository
+                .findByUserAndScheduledDate(user, date)
+                .ifPresent(s -> {
+                    markFailed(s);
+                });
+        } finally {
+            lock.release(user.getPid(), date);
         }
     }
 }

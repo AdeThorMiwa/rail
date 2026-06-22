@@ -11,8 +11,6 @@ import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,25 +19,13 @@ import org.springframework.stereotype.Component;
 @Slf4j
 class SchedulingCronJob {
 
-    @Value("${rail.scheduling.wake-trigger-offset-hours:1}")
-    private int wakeTriggerOffsetHours;
-
     @Value("${rail.connie.pattern-analysis.analysis-hour:1}")
     private int patternAnalysisHour;
 
     private final UserSchedulingProfileRepository profileRepository;
     private final ScheduleEntryService scheduleEntryService;
-    private final ScheduleGenerationService scheduleGenerationService;
     private final ConnieProfileService connieProfileService;
     private final UserConnieLogRepository connieLogRepository;
-
-    @EventListener(ApplicationReadyEvent.class)
-    @Scheduled(cron = "${rail.scheduling.cron.build-daily:0 */20 * * * *}")
-    public void buildDailySchedules() {
-        for (var profile : profileRepository.findAll()) {
-            scheduleGenerationService.generateIfWithinWindow(profile.getUser(), wakeTriggerOffsetHours);
-        }
-    }
 
     @Scheduled(cron = "${rail.scheduling.cron.auto-miss:0 * * * * *}")
     public void autoMissOverdueEntries() {

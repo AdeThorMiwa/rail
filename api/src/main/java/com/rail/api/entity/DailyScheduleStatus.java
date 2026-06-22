@@ -5,4 +5,5 @@ public enum DailyScheduleStatus {
     PLANNED,
     IN_PROGRESS,
     COMPLETED,
+    FAILED,
 }

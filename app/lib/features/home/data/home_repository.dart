@@ -8,14 +8,9 @@ class HomeRepository {
   const HomeRepository(this._client);
 
   Future<DailySchedule?> getTodaySchedule() async {
-    try {
-      final res = await _client.dio.get('/schedule/today');
-      if (res.data == null) return null;
-      return DailySchedule.fromJson(res.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return null;
-      rethrow;
-    }
+    final res = await _client.dio.post('/schedule/today');
+    if (res.data == null) return null;
+    return DailySchedule.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<ScheduleEntry> completeEntry(
