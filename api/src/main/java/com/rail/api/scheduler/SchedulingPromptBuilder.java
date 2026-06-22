@@ -247,8 +247,8 @@ class SchedulingPromptBuilder {
         if (task.getMilestone() != null) {
             String currentMarker = task.getMilestone().getStatus() == MilestoneStatus.IN_PROGRESS
                 ? " ← current milestone" : "";
-            lines.add("  Milestone: \"%s\" (position %d%s)".formatted(
-                task.getMilestone().getTitle(), task.getMilestone().getPosition(), currentMarker));
+            lines.add("  Milestone: \"%s\"%s".formatted(
+                task.getMilestone().getTitle(), currentMarker));
         }
 
         return lines.stream().collect(Collectors.joining("\n")) + "\n";
