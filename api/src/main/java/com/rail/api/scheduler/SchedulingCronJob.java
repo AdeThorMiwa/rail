@@ -26,37 +26,15 @@ class SchedulingCronJob {
     private int patternAnalysisHour;
 
     private final UserSchedulingProfileRepository profileRepository;
-    private final DailyScheduler dailyScheduler;
     private final ScheduleEntryService scheduleEntryService;
-    private final ScheduleInitService scheduleInitService;
+    private final ScheduleGenerationService scheduleGenerationService;
     private final ConnieProfileService connieProfileService;
     private final UserConnieLogRepository connieLogRepository;
 
     @Scheduled(cron = "${rail.scheduling.cron.build-daily:0 */20 * * * *}")
     public void buildDailySchedules() {
         for (var profile : profileRepository.findAll()) {
-            var user = profile.getUser();
-            try {
-                ZoneId zone = ZoneId.of(profile.getTimezone());
-                LocalDate today = LocalDate.now(zone);
-                LocalTime now = LocalTime.now(zone);
-                LocalTime triggerTime = profile.getWakeTime().minusHours(wakeTriggerOffsetHours);
-                if (now.isBefore(triggerTime)) {
-                    continue;
-                }
-                if (!scheduleInitService.markGenerating(user, today)) {
-                    continue;
-                }
-                dailyScheduler.recompute(user, today);
-                log.info("Built schedule for user {}", user.getPid());
-            } catch (Exception e) {
-                log.error(
-                    "Failed to build schedule for user {}: {}",
-                    user.getPid(),
-                    e.getMessage(),
-                    e
-                );
-            }
+            scheduleGenerationService.generateIfWithinWindow(profile.getUser(), wakeTriggerOffsetHours);
         }
     }
 

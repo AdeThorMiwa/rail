@@ -4,7 +4,9 @@ import com.rail.api.component.UserResolver;
 import com.rail.api.dto.DailyScheduleDto;
 import com.rail.api.dto.ScheduleEntryDto;
 import com.rail.api.entity.TaskCompletionType;
+import com.rail.api.entity.User;
 import com.rail.api.scheduler.DailyScheduler;
+import com.rail.api.scheduler.ScheduleGenerationService;
 import com.rail.api.service.ScheduleEntryService;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -26,6 +28,7 @@ public class ScheduleController {
     private final DailyScheduler dailyScheduler;
     private final ScheduleEntryService scheduleEntryService;
     private final UserResolver userResolver;
+    private final ScheduleGenerationService scheduleGenerationService;
 
     public record CompleteEntryRequest(
         TaskCompletionType completionType,
@@ -39,9 +42,13 @@ public class ScheduleController {
 
     @GetMapping("/today")
     public ResponseEntity<DailyScheduleDto> today(@AuthenticationPrincipal UUID userPid) {
-        return dailyScheduler.getToday(userResolver.resolve(userPid))
+        User user = userResolver.resolve(userPid);
+        return dailyScheduler.getToday(user)
             .map(ResponseEntity::ok)
-            .orElseGet(() -> ResponseEntity.notFound().build());
+            .orElseGet(() -> {
+                scheduleGenerationService.generateTodayIfMissing(user);
+                return ResponseEntity.notFound().build();
+            });
     }
 
     @PostMapping("/entries/{entryPid}/complete")

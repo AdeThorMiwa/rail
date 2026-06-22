@@ -353,17 +353,10 @@ public class LlmDailyScheduler implements DailyScheduler {
         List<DailyScheduleEntry> allEntries =
             entryRepository.findByDailyScheduleOrderByStartTime(schedule);
 
-        if (llmResult.usedFallback()) {
-            eventPublisher.publishEvent(
-                new SsePublishEvent(
-                    user.getPid(),
-                    "schedule_updated",
-                    dtoMapper.toDailyScheduleDto(schedule, allEntries)
-                )
-            );
-        }
+        DailyScheduleDto result = dtoMapper.toDailyScheduleDto(schedule, allEntries);
+        eventPublisher.publishEvent(new SsePublishEvent(user.getPid(), "schedule_updated", result));
 
-        return dtoMapper.toDailyScheduleDto(schedule, allEntries);
+        return result;
     }
 
     private List<String> loadCycleFocusTitles(User user) {
