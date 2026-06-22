@@ -5,7 +5,6 @@ import com.rail.api.entity.DailyScheduleEntry;
 import com.rail.api.entity.Goal;
 import com.rail.api.entity.User;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,14 +28,12 @@ public interface DailyScheduleEntryRepository
         JOIN FETCH ds.user u
         WHERE e.status = 'PENDING'
           AND e.entryType = 'TASK'
-          AND e.endTime <= :now
-          AND ds.scheduledDate = :today
+          AND ds.scheduledDate < :today
           AND u = :user
         """)
     List<DailyScheduleEntry> findPendingTaskEntriesDueForAutoMiss(
         @Param("user") User user,
-        @Param("today") LocalDate today,
-        @Param("now") LocalTime now
+        @Param("today") LocalDate today
     );
 
     @Query("""

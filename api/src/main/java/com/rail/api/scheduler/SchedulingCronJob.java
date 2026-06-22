@@ -27,7 +27,7 @@ class SchedulingCronJob {
     private final ConnieProfileService connieProfileService;
     private final UserConnieLogRepository connieLogRepository;
 
-    @Scheduled(cron = "${rail.scheduling.cron.auto-miss:0 * * * * *}")
+    @Scheduled(cron = "${rail.scheduling.cron.auto-miss:0 0 * * * *}")
     public void autoMissOverdueEntries() {
         try {
             scheduleEntryService.autoMissOverdueEntries();

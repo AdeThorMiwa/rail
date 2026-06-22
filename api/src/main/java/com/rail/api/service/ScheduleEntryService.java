@@ -31,7 +31,6 @@ import com.rail.api.repository.UserSchedulingProfileRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
@@ -384,13 +383,11 @@ public class ScheduleEntryService {
         for (var profile : profileRepository.findAll()) {
             ZoneId zone = ZoneId.of(profile.getTimezone());
             LocalDate today = LocalDate.now(zone);
-            LocalTime now = LocalTime.now(zone);
 
             List<DailyScheduleEntry> overdue =
                 entryRepository.findPendingTaskEntriesDueForAutoMiss(
                     profile.getUser(),
-                    today,
-                    now
+                    today
                 );
 
             for (DailyScheduleEntry entry : overdue) {

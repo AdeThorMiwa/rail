@@ -36,7 +36,9 @@ class _ScheduleDayState extends State<ScheduleDay> {
         setState(() {});
       }
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForNewActiveEntries());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _checkForNewActiveEntries(),
+    );
   }
 
   void _checkForNewActiveEntries() {
@@ -55,7 +57,9 @@ class _ScheduleDayState extends State<ScheduleDay> {
     super.didUpdateWidget(old);
     if (old.schedule != widget.schedule) {
       _notifiedPids.clear();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _checkForNewActiveEntries());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _checkForNewActiveEntries(),
+      );
     }
   }
 
@@ -76,6 +80,10 @@ class _ScheduleDayState extends State<ScheduleDay> {
     final doneEntries = <ScheduleEntry>[];
 
     for (final e in taskEntries) {
+      if (e.isMissed) {
+        overdueEntries.add(e);
+        continue;
+      }
       if (!e.isPending) {
         doneEntries.add(e);
         continue;
@@ -94,10 +102,14 @@ class _ScheduleDayState extends State<ScheduleDay> {
       }
     }
 
-    final allDone = taskEntries.isNotEmpty && taskEntries.every((e) => !e.isPending);
+    final allDone =
+        taskEntries.isNotEmpty && taskEntries.every((e) => !e.isPending);
     final doneCount = doneEntries.length;
     final totalCount = taskEntries.length;
-    final hasContent = activeEntry != null || overdueEntries.isNotEmpty || upcomingEntries.isNotEmpty;
+    final hasContent =
+        activeEntry != null ||
+        overdueEntries.isNotEmpty ||
+        upcomingEntries.isNotEmpty;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 90),
@@ -135,16 +147,6 @@ class _ScheduleDayState extends State<ScheduleDay> {
             const SizedBox(height: 6),
           ],
 
-          // OVERDUE zone
-          if (overdueEntries.isNotEmpty) ...[
-            _SectionLabel(
-              label: 'OVERDUE',
-              labelColor: const Color(0xFFEF5350),
-              lineColor: const Color(0x26EF5350),
-            ),
-            ...overdueEntries.map((e) => OverdueTaskCard(entry: e)),
-          ],
-
           // COMING UP zone
           if (upcomingEntries.isNotEmpty) ...[
             _SectionLabel(
@@ -155,8 +157,7 @@ class _ScheduleDayState extends State<ScheduleDay> {
             ...upcomingEntries.map((e) => UpcomingTaskCard(entry: e)),
           ],
 
-          if (!hasContent && doneEntries.isEmpty)
-            const _EmptyScheduleNote(),
+          if (!hasContent && doneEntries.isEmpty) const _EmptyScheduleNote(),
         ],
 
         // DONE accordion — always at bottom when entries exist
@@ -166,6 +167,16 @@ class _ScheduleDayState extends State<ScheduleDay> {
             expanded: _doneExpanded,
             onToggle: () => setState(() => _doneExpanded = !_doneExpanded),
           ),
+
+        // OVERDUE zone
+        if (overdueEntries.isNotEmpty) ...[
+          _SectionLabel(
+            label: 'OVERDUE',
+            labelColor: const Color(0xFFEF5350),
+            lineColor: const Color(0x26EF5350),
+          ),
+          ...overdueEntries.map((e) => OverdueTaskCard(entry: e)),
+        ],
       ],
     );
   }
@@ -244,10 +255,12 @@ class _NextTaskHint extends StatelessWidget {
     final countdown = mins <= 0
         ? 'starting now'
         : mins < 60
-            ? 'in $mins minutes'
-            : 'in ${mins ~/ 60}h ${mins % 60 > 0 ? '${mins % 60}m' : ''}';
+        ? 'in $mins minutes'
+        : 'in ${mins ~/ 60}h ${mins % 60 > 0 ? '${mins % 60}m' : ''}';
 
-    final h = entry.startTime.hourOfPeriod == 0 ? 12 : entry.startTime.hourOfPeriod;
+    final h = entry.startTime.hourOfPeriod == 0
+        ? 12
+        : entry.startTime.hourOfPeriod;
     final m = entry.startTime.minute.toString().padLeft(2, '0');
     final p = entry.startTime.period == DayPeriod.am ? 'AM' : 'PM';
     final timeStr = '$h:$m $p';
@@ -426,7 +439,10 @@ class _DoneAccordion extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF0ECFF),
                       borderRadius: BorderRadius.circular(8),
