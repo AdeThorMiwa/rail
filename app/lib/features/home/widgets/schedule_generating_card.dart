@@ -34,45 +34,49 @@ class _ScheduleGeneratingCardState extends State<ScheduleGeneratingCard>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0EEFF),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          AnimatedBuilder(
-            animation: _pulse,
-            builder: (context, child) => Opacity(
-              opacity: _pulse.value,
-              child: child,
-            ),
-            child: _SpinningSparkle(size: 36),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0EEFF),
+            borderRadius: BorderRadius.circular(20),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Getting your day ready',
-            style: GoogleFonts.nunito(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF6355EE),
-            ),
+          child: Column(
+            children: [
+              AnimatedBuilder(
+                animation: _pulse,
+                builder: (context, child) => Opacity(
+                  opacity: _pulse.value,
+                  child: child,
+                ),
+                child: _SpinningSparkle(size: 36),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Getting your day ready',
+                style: GoogleFonts.nunito(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF6355EE),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Rail is putting together your schedule.\nIt\'ll be ready in just a moment.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.nunito(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF6355EE).withValues(alpha: 0.65),
+                  height: 1.5,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Rail is putting together your schedule.\nIt\'ll be ready in just a moment.',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.nunito(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF6355EE).withValues(alpha: 0.65),
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
