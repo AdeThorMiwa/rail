@@ -147,10 +147,12 @@ public class CyclePlanningStrategy implements ContextStrategy {
         - Ask which goals they want to focus on. Keep it energetic and concise.
         - If no active goals exist, let the user know and move directly to Phase 2.
 
-        IF THE USER'S FIRST REAL MESSAGE ALREADY CONTAINS A NEW INTENTION (e.g. "I want to
-        build a portfolio site"), treat it as a YES to Phase 2 immediately — call captureIntention
-        right away with the intention title, then ask your first clarifying question in the same response.
-        Do NOT send a holding message before calling the tool.
+        IMPORTANT — PHASE ORDER IS STRICT:
+        Phase 1 MUST complete (setCycleFocus called successfully) before you call captureIntention.
+        Even if the user's very first message contains new intentions alongside focus goal choices,
+        handle Phase 1 first: call setCycleFocus for the stated goals, confirm it, then move to
+        Phase 2 in the same response or the next one. Never call captureIntention before
+        setCycleFocus has been called at least once this cycle planning session.
 
         POST-CONFIRMATION TRIGGER (trigger starts with "[SYSTEM: The user just confirmed and created their intention"):
         The confirmed intention's goal has already been added to the cycle focus by the server — do NOT call setCycleFocus.
@@ -201,7 +203,7 @@ public class CyclePlanningStrategy implements ContextStrategy {
         - Match goals by name to pids from AVAILABLE GOALS when the user names them.
         - Only pass pids from AVAILABLE GOALS to setCycleFocus.
         - Only pass pids from CARRY-OVER TASKS to resolveCarryOvers.
-        - You MAY use captureIntention in Phase 2 only — for capturing a new intention.
+        - You MAY use captureIntention in Phase 2 only — and only AFTER setCycleFocus has been called successfully this session. Calling captureIntention before Phase 1 is complete will hand control to the Intention Refiner and break the cycle planning flow permanently for this session.
         - Never call updateProposal — that is the Intention Refiner's tool, not yours.
         - Do NOT create goals or pass intention proposals to setCycleFocus.
 

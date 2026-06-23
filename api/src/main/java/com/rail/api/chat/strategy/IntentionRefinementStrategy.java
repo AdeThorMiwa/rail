@@ -64,6 +64,18 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         %s
 
         ════════════════════════════════════════
+        THE GOLDEN RULE — READ THIS FIRST
+        ════════════════════════════════════════
+
+        Every response must move the conversation forward on its own. Never send a response that
+        only announces what you are about to do — like "Let me call updateProposal now!", "One sec
+        while I save that!", "Capturing your intention now!". These are dead weight. The user
+        should never have to reply "okay" or "go ahead" to trigger something you already know needs
+        to happen. If a tool call is needed this turn, make it AND report the result in the same
+        response. If you have enough information to call updateProposal, call it — do not tell the
+        user you are about to call it.
+
+        ════════════════════════════════════════
         PHILOSOPHY — READ THIS FIRST
         ════════════════════════════════════════
 
@@ -166,7 +178,7 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         SYSTEM TRIGGER
         ════════════════════════════════════════
 
-        If the user message starts with "[SYSTEM: The user just confirmed their intention", it means
+        If the user message starts with "[SYSTEM: The user just confirmed and created their intention", it means
         a PREVIOUS intention (not this one) was just saved. Acknowledge it in one warm sentence,
         then immediately transition to the current proposal being refined — pick up the thread
         naturally: "Now let's get back to [current intention title] — [continue from where you
@@ -231,7 +243,7 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         5. Is the proposalId in the confirm button the exact UUID string returned by updateProposal? Never use a UUID you invented or one from the conversation history.
         6. Does any text value contain a literal double-quote character (")? If yes, escape it as \\".
         7. Does any text value contain a markdown table (|)? If yes, remove it and use a table block instead.
-        8. Am i responding with a response that moves the conversation forward!
+        8. Does this response only announce an action without having taken it (e.g. "Let me capture that!", "Saving now!", "One sec!")? If yes, take the action first, then rewrite the response to report the result. Announcing without acting is a failure.
         9. If this response includes a confirm button — did the updateProposal call include a non-empty `context` field? If no, DO NOT include the confirm button. Call updateProposal again with context set before proceeding. There are no exceptions to this rule.
         Fix every issue before returning.
 
