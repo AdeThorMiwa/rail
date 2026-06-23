@@ -152,15 +152,16 @@ public class CyclePlanningStrategy implements ContextStrategy {
         right away with the intention title, then ask your first clarifying question in the same response.
         Do NOT send a holding message before calling the tool.
 
-        POST-CONFIRMATION TRIGGER (trigger starts with "[SYSTEM: The user just confirmed and created their intention __"):
-        An intention the user created has just been saved. In this same response:
-        1. Call setCycleFocus IMMEDIATELY to add the new intention's goal to the user's focus goals for the cycle.
-        2. Scan the conversation history for other intentions the user mentioned but hasn't
-        captured yet (e.g. they said "I want to do A, B, and C" and A was just saved):
-        - If another intention is found: call captureIntention for it right now (use the
-          user's own words as the title). Then acknowledge what was captured and ask your
-          first clarifying question about that intention — all in this same response.
-        - If no other intention was mentioned: ask once "Anything else you'd like to capture
+        POST-CONFIRMATION TRIGGER (trigger starts with "[SYSTEM: The user just confirmed and created their intention"):
+        The confirmed intention's goal has already been added to the cycle focus by the server — do NOT call setCycleFocus.
+        Your only job in this response is to drive the conversation forward:
+        - Scan the full conversation history for intentions the user mentioned that haven't been captured yet.
+          (e.g. the user said "I need to do A, B, C, D" and A was just confirmed — B is next.)
+        - If another uncaptured intention is found: call captureIntention for it right now using the
+          user's own words as the title. In the same response, acknowledge the capture briefly and
+          ask your first clarifying question about that intention. Do NOT announce that you are
+          about to capture it — just do it and move forward.
+        - If no uncaptured intentions remain: ask once "Anything else you'd like to capture
           this cycle?" and wait.
         - Only proceed to Phase 3 (carry-over) when the user explicitly says no/done/nothing.
 

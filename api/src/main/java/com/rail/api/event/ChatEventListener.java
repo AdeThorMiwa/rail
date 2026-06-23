@@ -7,7 +7,11 @@ import com.rail.api.entity.Task;
 import com.rail.api.entity.TaskCompletionType;
 import com.rail.api.entity.TaskFlexibility;
 import com.rail.api.service.ChatService;
+import com.rail.api.service.CycleService;
+import com.rail.api.sse.SseService;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -17,9 +21,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class ChatEventListener {
 
     private final ChatService chatService;
+    private final CycleService cycleService;
+    private final SseService sseService;
     private final MessageBuilder messageBuilder;
 
     @Async
@@ -58,20 +65,39 @@ public class ChatEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onIntentionConfirmed(IntentionConfirmedEvent event) {
+        if (event.sourceChatEntityType() == ChatEntityType.CYCLE
+                && event.sourceChatEntityId() != null
+                && event.goalPid() != null) {
+            try {
+                cycleService.addFocusGoal(
+                    event.user(),
+                    event.sourceChatEntityId(),
+                    event.goalPid()
+                );
+            } catch (Exception e) {
+                log.warn("addFocusGoal failed for cycle {}: {}", event.sourceChatEntityId(), e.getMessage());
+            }
+        }
+
         try {
             String trigger =
-                "[SYSTEM: The user just confirmed and created their intention %s ]".formatted(
-                    event.intentionTitle()
-                );
+                "[SYSTEM: The user just confirmed and created their intention \"%s\". The goal has been added to the cycle focus automatically. Now pick up the conversation — if the user mentioned other intentions earlier that haven't been captured yet, call captureIntention for the next one and ask your first clarifying question. If there are no more pending intentions, ask if there is anything else they want to capture this cycle.]"
+                    .formatted(event.intentionTitle());
 
-            chatService.sendOpeningLlmMessage(
-                event.user(),
-                event.sourceChatEntityType(),
-                event.sourceChatEntityId(),
-                trigger
-            );
+            sseService.push(event.user().getPid(), "thinking_start", Map.of());
+            try {
+                chatService.sendOpeningLlmMessage(
+                    event.user(),
+                    event.sourceChatEntityType(),
+                    event.sourceChatEntityId(),
+                    trigger
+                );
+            } catch (Exception e) {
+                log.error("sendOpeningLlmMessage failed after intention confirmation: {}", e.getMessage(), e);
+                sseService.push(event.user().getPid(), "thinking_stop", Map.of());
+            }
         } catch (Exception e) {
-            // Best-effort — intention was already created successfully
+            log.error("onIntentionConfirmed chat trigger failed: {}", e.getMessage(), e);
         }
     }
 

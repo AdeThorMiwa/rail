@@ -14,6 +14,7 @@ import com.rail.api.entity.ChatEntityType;
 import com.rail.api.entity.UserCycle;
 import com.rail.api.intelligence.RetroAnalysis;
 import com.rail.api.repository.CycleFocusRepository;
+import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.TaskOccurrenceRepository;
 import com.rail.api.repository.TaskRepository;
 import com.rail.api.repository.UserCycleRepository;
@@ -46,6 +47,7 @@ public class CycleService {
 
     private final UserCycleRepository cycleRepository;
     private final CycleFocusRepository cycleFocusRepository;
+    private final GoalRepository goalRepository;
     private final TaskRepository taskRepository;
     private final TaskOccurrenceRepository occurrenceRepository;
     private final UserSchedulingProfileRepository profileRepository;
@@ -178,6 +180,35 @@ public class CycleService {
                 eventPublisher.publishEvent(new CycleRetroOpenEvent(cycle.getOwner(), cycle.getPid()));
             }
         }
+    }
+
+    @Transactional
+    public void addFocusGoal(User user, UUID cyclePid, UUID goalPid) {
+        UserCycle cycle = cycleRepository.findByPidAndOwner(cyclePid, user).orElse(null);
+        if (cycle == null) {
+            log.warn("addFocusGoal: cycle {} not found for user {}", cyclePid, user.getPid());
+            return;
+        }
+        Goal goal = goalRepository.findByPidAndOwner(goalPid, user).orElse(null);
+        if (goal == null) {
+            log.warn("addFocusGoal: goal {} not found for user {}", goalPid, user.getPid());
+            return;
+        }
+        boolean alreadyFocused = cycleFocusRepository
+            .findByCycleOrderByPositionAsc(cycle)
+            .stream()
+            .anyMatch(f -> f.getGoal().getPid().equals(goalPid));
+        if (alreadyFocused) return;
+
+        int nextPosition = cycleFocusRepository.findByCycleOrderByPositionAsc(cycle).size();
+        cycleFocusRepository.save(
+            CycleFocus.builder()
+                .cycle(cycle)
+                .goal(goal)
+                .position(nextPosition)
+                .build()
+        );
+        log.info("addFocusGoal: added goal '{}' to cycle {}", goal.getTitle(), cyclePid);
     }
 
     public List<CycleFocusDto> getFocuses(User owner, UUID cyclePid) {

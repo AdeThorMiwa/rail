@@ -45,45 +45,56 @@ class CycleScreen extends ConsumerWidget {
             ],
           ),
         ),
-        data: (cycle) => CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              backgroundColor: const Color(0xFFF4F8FF),
-              elevation: 0,
-              pinned: true,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                color: const Color(0xFF1A1A2E),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: Text(
-                cycle == null ? 'New Cycle' : 'My Cycle',
-                style: GoogleFonts.nunito(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
+        data: (cycle) => RefreshIndicator(
+          color: const Color(0xFF7B6EFF),
+          backgroundColor: Colors.white,
+          onRefresh: () async {
+            ref.invalidate(cycleProvider);
+            if (cycle != null) {
+              ref.invalidate(cycleFocusesProvider(cycle.pid));
+            }
+            await ref.read(cycleProvider.future);
+          },
+          child: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                backgroundColor: const Color(0xFFF4F8FF),
+                elevation: 0,
+                pinned: true,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
                   color: const Color(0xFF1A1A2E),
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
-              ),
-            ),
-            if (cycle == null)
-              const SliverToBoxAdapter(child: CreateCycleForm())
-            else
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CycleHeroCard(cycle: cycle),
-                      const SizedBox(height: 20),
-                      CycleFocusSection(cycle: cycle),
-                      const SizedBox(height: 20),
-                      CycleChatButton(cycle: cycle),
-                    ],
+                title: Text(
+                  cycle == null ? 'New Cycle' : 'My Cycle',
+                  style: GoogleFonts.nunito(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF1A1A2E),
                   ),
                 ),
               ),
-          ],
+              if (cycle == null)
+                const SliverToBoxAdapter(child: CreateCycleForm())
+              else
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CycleHeroCard(cycle: cycle),
+                        const SizedBox(height: 20),
+                        CycleFocusSection(cycle: cycle),
+                        const SizedBox(height: 20),
+                        CycleChatButton(cycle: cycle),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
