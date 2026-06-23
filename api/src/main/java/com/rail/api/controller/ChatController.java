@@ -30,10 +30,11 @@ public class ChatController {
 
     @GetMapping("/messages")
     public List<ChatMessageDto> getMessages(
-        @AuthenticationPrincipal UUID userPid
+        @AuthenticationPrincipal UUID userPid,
+        @RequestParam(required = false) UUID before
     ) {
         User user = userResolver.resolve(userPid);
-        return chatService.getMessages(user);
+        return chatService.getMessages(user, ChatEntityType.GLOBAL, null, before);
     }
 
     @PostMapping("/messages")
@@ -75,10 +76,11 @@ public class ChatController {
     public List<ChatMessageDto> getEntityMessages(
         @AuthenticationPrincipal UUID userPid,
         @PathVariable ChatEntityType entityType,
-        @PathVariable UUID entityId
+        @PathVariable UUID entityId,
+        @RequestParam(required = false) UUID before
     ) {
         User user = userResolver.resolve(userPid);
-        return chatService.getMessages(user, entityType, entityId);
+        return chatService.getMessages(user, entityType, entityId, before);
     }
 
     @PostMapping("/{entityType}/{entityId}/messages")

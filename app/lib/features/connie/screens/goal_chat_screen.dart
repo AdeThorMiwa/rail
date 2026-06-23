@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:rail/features/connie/widgets/chat_date_divider.dart';
 import 'package:rail/features/connie/widgets/connie_command_sheet.dart';
 import '../../../../core/notifications/notifications_provider.dart';
 import '../../intentions/data/models/goal_models.dart';
@@ -29,13 +30,22 @@ class _GoalChatScreenState extends ConsumerState<GoalChatScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(notificationsProvider.notifier).markRead('GOAL', widget.goalPid);
     });
   }
 
+  void _onScroll() {
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 200) {
+      ref.read(goalChatProvider(widget.goalPid).notifier).loadMore();
+    }
+  }
+
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -88,6 +98,9 @@ class _GoalChatScreenState extends ConsumerState<GoalChatScreen> {
     final items = chatState.activity;
     final messageById = {for (final m in items) m.id: m};
     final showThinking = chatState.isThinking;
+    final chatItems = buildChatItems(items);
+    final isLoadingMore = chatState.isLoadingMore;
+    final extraTop = isLoadingMore ? 1 : 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F8FF),
@@ -114,14 +127,23 @@ class _GoalChatScreenState extends ConsumerState<GoalChatScreen> {
                     controller: _scrollController,
                     reverse: true,
                     padding: const EdgeInsets.fromLTRB(14, 24, 14, 14),
-                    itemCount: items.length + (showThinking ? 1 : 0),
+                    itemCount: chatItems.length + (showThinking ? 1 : 0) + extraTop,
                     separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (_, i) {
-                      if (showThinking && i == 0) {
-                        return const ConnieLoadingBubble();
+                      if (showThinking && i == 0) return const ConnieLoadingBubble();
+                      final adjustedI = showThinking ? i - 1 : i;
+                      if (isLoadingMore && adjustedI == chatItems.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7B6EFF)))),
+                        );
                       }
-                      final idx = items.length - 1 - (showThinking ? i - 1 : i);
-                      final msg = items[idx];
+                      final idx = chatItems.length - 1 - adjustedI;
+                      final item = chatItems[idx];
+                      if (item is ChatDividerItem) {
+                        return ChatDateDivider(date: item.date);
+                      }
+                      final msg = item as Message;
                       final replyTarget = msg.replyToId != null
                           ? messageById[msg.replyToId]
                           : null;

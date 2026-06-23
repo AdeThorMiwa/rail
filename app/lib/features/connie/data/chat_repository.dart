@@ -13,8 +13,11 @@ class ChatRepository {
     return Chat.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<List<Message>> getMessages() async {
-    final res = await _client.dio.get('/chat/messages');
+  Future<List<Message>> getMessages({String? before}) async {
+    final res = await _client.dio.get(
+      '/chat/messages',
+      queryParameters: before != null ? {'before': before} : null,
+    );
     return (res.data as List)
         .map((e) => Message.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -38,15 +41,21 @@ class ChatRepository {
     });
   }
 
-  Future<List<Message>> getEntityMessages(String entityType, String entityId) async {
-    final res = await _client.dio.get('/chat/$entityType/$entityId/messages');
+  Future<List<Message>> getEntityMessages(String entityType, String entityId, {String? before}) async {
+    final res = await _client.dio.get(
+      '/chat/$entityType/$entityId/messages',
+      queryParameters: before != null ? {'before': before} : null,
+    );
     return (res.data as List)
         .map((e) => Message.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  Future<List<Message>> getGoalActivity(String goalPid) async {
-    final res = await _client.dio.get('/goals/$goalPid/activity');
+  Future<List<Message>> getGoalActivity(String goalPid, {String? before}) async {
+    final res = await _client.dio.get(
+      '/goals/$goalPid/activity',
+      queryParameters: before != null ? {'before': before} : null,
+    );
     return (res.data as List)
         .map((e) => Message.fromJson(e as Map<String, dynamic>))
         .toList();

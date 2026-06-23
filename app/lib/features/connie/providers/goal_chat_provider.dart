@@ -8,6 +8,8 @@ class GoalChatState {
   final List<Message> activity;
   final bool isFetching;
   final bool isThinking;
+  final bool isLoadingMore;
+  final bool hasMore;
   final String? error;
   final Message? replyingTo;
 
@@ -15,6 +17,8 @@ class GoalChatState {
     required this.activity,
     this.isFetching = false,
     this.isThinking = false,
+    this.isLoadingMore = false,
+    this.hasMore = true,
     this.error,
     this.replyingTo,
   });
@@ -23,6 +27,8 @@ class GoalChatState {
     List<Message>? activity,
     bool? isFetching,
     bool? isThinking,
+    bool? isLoadingMore,
+    bool? hasMore,
     String? error,
     bool clearError = false,
     Message? replyingTo,
@@ -31,6 +37,8 @@ class GoalChatState {
     activity: activity ?? this.activity,
     isFetching: isFetching ?? this.isFetching,
     isThinking: isThinking ?? this.isThinking,
+    isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    hasMore: hasMore ?? this.hasMore,
     error: clearError ? null : (error ?? this.error),
     replyingTo: clearReply ? null : (replyingTo ?? this.replyingTo),
   );
@@ -60,9 +68,30 @@ class GoalChatNotifier extends FamilyNotifier<GoalChatState, String> {
   Future<void> _fetch() async {
     try {
       final messages = await _repository.getGoalActivity(arg);
-      state = state.copyWith(activity: messages, isFetching: false, clearError: true);
+      state = state.copyWith(
+        activity: messages,
+        isFetching: false,
+        hasMore: messages.length >= kChatPageSize,
+        clearError: true,
+      );
     } catch (e) {
       state = state.copyWith(isFetching: false, error: e.toString());
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoadingMore || !state.hasMore || state.activity.isEmpty) return;
+    final cursor = state.activity.first.id;
+    state = state.copyWith(isLoadingMore: true);
+    try {
+      final older = await _repository.getGoalActivity(arg, before: cursor);
+      state = state.copyWith(
+        activity: [...older, ...state.activity],
+        isLoadingMore: false,
+        hasMore: older.length >= kChatPageSize,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoadingMore: false, error: e.toString());
     }
   }
 

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -42,9 +43,10 @@ public class GoalController {
     @GetMapping("/{pid}/activity")
     public List<ChatMessageDto> getActivity(
         @AuthenticationPrincipal UUID userPid,
-        @PathVariable UUID pid
+        @PathVariable UUID pid,
+        @RequestParam(required = false) UUID before
     ) {
-        return chatService.getGoalActivity(userResolver.resolve(userPid), pid);
+        return chatService.getGoalActivity(userResolver.resolve(userPid), pid, before);
     }
 
     public record CompleteRequest(String notes) {}

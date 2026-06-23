@@ -25,32 +25,47 @@ class TableBlockRenderer extends BlockRenderer<TableBlock> {
   @override
   Widget build(BuildContext context) {
     final hasColumns = block.columns != null && block.columns!.isNotEmpty;
+    final columnCount = hasColumns ? block.columns!.length : (block.rows.firstOrNull?.length ?? 1);
 
-    return Container(
+    final table = Table(
+      border: TableBorder.symmetric(
+        inside: const BorderSide(color: Color(0xFFE8E8F0)),
+      ),
+      defaultColumnWidth: block.scrollable
+          ? const IntrinsicColumnWidth()
+          : const FlexColumnWidth(),
+      columnWidths: block.scrollable
+          ? {for (var i = 0; i < columnCount; i++) i: const IntrinsicColumnWidth()}
+          : null,
+      children: [
+        if (hasColumns)
+          TableRow(
+            decoration: const BoxDecoration(color: Color(0xFFF5F4FF)),
+            children: block.columns!
+                .map((col) => _cell(col, bold: true))
+                .toList(),
+          ),
+        ...block.rows.map(
+          (row) =>
+              TableRow(children: row.map((cell) => _cell(cell)).toList()),
+        ),
+      ],
+    );
+
+    final decorated = Container(
       decoration: BoxDecoration(
         border: Border.all(color: const Color(0xFFE8E8F0)),
         borderRadius: BorderRadius.circular(10),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Table(
-        border: TableBorder.symmetric(
-          inside: const BorderSide(color: Color(0xFFE8E8F0)),
-        ),
-        defaultColumnWidth: const FlexColumnWidth(),
-        children: [
-          if (hasColumns)
-            TableRow(
-              decoration: const BoxDecoration(color: Color(0xFFF5F4FF)),
-              children: block.columns!
-                  .map((col) => _cell(col, bold: true))
-                  .toList(),
-            ),
-          ...block.rows.map(
-            (row) =>
-                TableRow(children: row.map((cell) => _cell(cell)).toList()),
-          ),
-        ],
-      ),
+      child: table,
+    );
+
+    if (!block.scrollable) return decorated;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: decorated,
     );
   }
 
@@ -96,6 +111,7 @@ class ListBlockRenderer extends BlockRenderer<ListBlock> {
               Expanded(
                 child: MarkdownBody(
                   data: entry.value,
+                  selectable: true,
                   shrinkWrap: true,
                   styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
                       .copyWith(

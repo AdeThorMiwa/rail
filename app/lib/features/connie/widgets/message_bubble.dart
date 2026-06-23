@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:rail/features/connie/data/models/block_models.dart';
 import 'package:rail/features/connie/data/models/chat_models.dart';
 import 'block_renderer/block_factory.dart';
 import 'reply_quote.dart';
 import 'swipe_to_reply.dart';
+
+String _formatTime(DateTime dt) {
+  final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+  final m = dt.minute.toString().padLeft(2, '0');
+  final period = dt.hour < 12 ? 'AM' : 'PM';
+  return '$h:$m $period';
+}
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -68,6 +76,7 @@ class _UserBubble extends StatelessWidget {
             ],
             MarkdownBody(
               data: _getMessageText(),
+              selectable: true,
               styleSheet:
                   MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
                 p: Theme.of(context)
@@ -77,6 +86,18 @@ class _UserBubble extends StatelessWidget {
                 strong: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                _formatTime(message.createdAt),
+                style: GoogleFonts.nunito(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.6),
                 ),
               ),
             ),
@@ -155,6 +176,17 @@ class _ConnieBubble extends StatelessWidget {
                 if (replyTarget != null) ReplyQuote(replyTarget: replyTarget!),
                 ...message.blocks.map(
                   (b) => BlockRendererFactory.build(b, parentMessage: message),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _formatTime(message.createdAt),
+                    style: GoogleFonts.nunito(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFAAAAC0),
+                    ),
+                  ),
                 ),
               ],
             ),

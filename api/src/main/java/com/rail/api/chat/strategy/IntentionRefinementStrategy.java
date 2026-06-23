@@ -193,6 +193,7 @@ public class IntentionRefinementStrategy implements ContextStrategy {
 
         2. Table block — ALWAYS use this for any tabular or structured data, never markdown tables:
         {"type":"table","columns":["Field","Value"],"rows":[["Goal type","HABIT"],["Duration","10 min/day"]]}
+        Optional field "scrollable": true — set this when the table has many columns (4+) and will not fit on a mobile screen without horizontal scrolling. When scrollable is true, columns use intrinsic widths instead of stretching to fill the container.
         CRITICAL: every row in "rows" MUST be a JSON array `[...]`. Never write `"value1","value2"` without surrounding brackets. Wrong: `["a","b"],"c","d"`. Right: `["a","b"],["c","d"]`.
 
         3. List block — use for bullet-point summaries or short enumerated items:
@@ -215,8 +216,10 @@ public class IntentionRefinementStrategy implements ContextStrategy {
 
         FULL EXAMPLE (confirmation response):
         {"blocks":[
-          {"type":"text","spans":[{"type":"text","text":"Here is what I have captured:"}]},
-          {"type":"table","columns":["Field","Value"],"rows":[["Goal type","HABIT"],["Frequency","Daily"],["Duration","10 min"]]},
+          {"type":"text","spans":[{"type":"text","text":"Here is your first goal for learning Spanish."}]},
+          {"type":"text","spans":[{"type":"text","text":"You will start with a daily 20-minute session using Duolingo, which builds your vocabulary and ear for the language before anything else. Once you hit the 7-day streak milestone, that consistency becomes your foundation — the 30-day milestone is where the habit really locks in. The rhythm is simple: one session a day, every day, Rail will slot it into your schedule automatically."}]},
+          {"type":"table","scrollable":true,"columns":["Task","Duration","Milestone","Notes"],"rows":[["Complete one Duolingo lesson","20 min","7-day streak","Use the app's daily challenge mode"]]},
+          {"type":"table","columns":["Field","Value"],"rows":[["Goal type","HABIT"],["Energy level","LIGHT"],["Estimated hours","10 h"]]},
           {"type":"actions","items":[{"id":"c1","label":"Confirm Intention","style":"primary","command":"intentions.confirm","mode":"async","params":{"proposalId":"abc-123"}},{"id":"r1","label":"Revise","style":"secondary","command":"chats.reply","mode":"sync","params":{}}],"successItems":[{"id":"done","label":"Intention created!","style":"success","command":"noop","params":{}}],"onSuccessEmpty":"stay","onFailureEmpty":"stay"}
         ]}
 
@@ -321,10 +324,17 @@ public class IntentionRefinementStrategy implements ContextStrategy {
         the permanent memory of this refinement conversation — it must stand alone without the
         chat history.
 
-        After a successful updateProposal call, respond with a confirmation screen:
-        1. A text block summarising the intention and what the first goal will focus on
-        2. A table block showing the goal breakdown (type, energy, first goal scope, estimated hours)
-        3. An actions block with "Confirm Intention" (mode:async, command:intentions.confirm) and "Revise" (mode:sync, command:chats.reply)
+        After a successful updateProposal call, respond with a confirmation screen in this exact order:
+
+        1. A text block — one or two sentences framing the intention and what the first goal will focus on.
+
+        2. A text block — a prose narrative (3–6 sentences) that walks the user through what they are actually committing to. Describe how the tasks sequence and connect: what happens first, what that unlocks, how the milestones build on each other, and what the rhythm of the work will feel like day-to-day. Write it in Connie's warm voice, not as a list — it should read like a friend explaining a plan, not a spec document. For HABIT and ABSTINENCE goals with a single recurring task, keep this short: one or two sentences describing the daily/weekly rhythm and what consistency will look like.
+
+        3. A table block — the full task breakdown, one row per task from the synthesis. Columns: Task | Duration | Milestone | Notes. Set "scrollable": true on this block. For Duration, format as "X min" or "X h" (e.g. "30 min", "2 h"). For Milestone, use the milestone title the task belongs to, or "—" if none. For Notes, use the task notes if present, or "—" if null. Every cell must have a value — never leave a cell blank.
+
+        4. A table block — the goal summary stats (Goal type, Energy level, Estimated hours). No scrollable flag needed here.
+
+        5. An actions block with "Confirm Intention" (mode:async, command:intentions.confirm) and "Revise" (mode:sync, command:chats.reply)
 
         The "Confirm Intention" button is the ONLY place the user can trigger a save.
         Never show intermediate "save it?" or "looks good?" buttons backed by chats.reply —

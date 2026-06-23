@@ -22,6 +22,7 @@ class SpanText extends StatelessWidget {
   Widget _buildSpan(BuildContext context, ConnieSpan span) => switch (span) {
     ConnieTextSpan s => MarkdownBody(
       data: s.text,
+      selectable: true,
       shrinkWrap: true,
       styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
         p: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor),

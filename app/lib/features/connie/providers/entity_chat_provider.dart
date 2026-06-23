@@ -24,6 +24,8 @@ class EntityChatState {
   final List<Message> messages;
   final bool isFetching;
   final bool isThinking;
+  final bool isLoadingMore;
+  final bool hasMore;
   final String? error;
   final Message? replyingTo;
 
@@ -31,6 +33,8 @@ class EntityChatState {
     required this.messages,
     this.isFetching = false,
     this.isThinking = false,
+    this.isLoadingMore = false,
+    this.hasMore = true,
     this.error,
     this.replyingTo,
   });
@@ -39,6 +43,8 @@ class EntityChatState {
     List<Message>? messages,
     bool? isFetching,
     bool? isThinking,
+    bool? isLoadingMore,
+    bool? hasMore,
     String? error,
     bool clearError = false,
     Message? replyingTo,
@@ -47,6 +53,8 @@ class EntityChatState {
     messages: messages ?? this.messages,
     isFetching: isFetching ?? this.isFetching,
     isThinking: isThinking ?? this.isThinking,
+    isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    hasMore: hasMore ?? this.hasMore,
     error: clearError ? null : (error ?? this.error),
     replyingTo: clearReply ? null : (replyingTo ?? this.replyingTo),
   );
@@ -64,9 +72,32 @@ class EntityChatNotifier extends FamilyNotifier<EntityChatState, EntityChatConte
   Future<void> _fetch() async {
     try {
       final messages = await _repository.getEntityMessages(arg.entityType, arg.entityId);
-      state = state.copyWith(messages: messages, isFetching: false, clearError: true);
+      state = state.copyWith(
+        messages: messages,
+        isFetching: false,
+        hasMore: messages.length >= kChatPageSize,
+        clearError: true,
+      );
     } catch (e) {
       state = state.copyWith(isFetching: false, error: e.toString());
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoadingMore || !state.hasMore || state.messages.isEmpty) return;
+    final cursor = state.messages.first.id;
+    state = state.copyWith(isLoadingMore: true);
+    try {
+      final older = await _repository.getEntityMessages(
+        arg.entityType, arg.entityId, before: cursor,
+      );
+      state = state.copyWith(
+        messages: [...older, ...state.messages],
+        isLoadingMore: false,
+        hasMore: older.length >= kChatPageSize,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoadingMore: false, error: e.toString());
     }
   }
 

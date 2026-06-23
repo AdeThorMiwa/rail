@@ -19,15 +19,19 @@ import com.rail.api.repository.ChatMessageRepository;
 import com.rail.api.repository.ChatRepository;
 import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.TaskRepository;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +52,9 @@ public class ChatService {
     private final DtoMapper dtoMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final ChatCreationHelper chatCreationHelper;
+
+    @Value("${rail.chat.page-size:50}")
+    private int pageSize;
 
     public Chat getOrCreateChat(User user, ChatEntityType entityType, UUID entityId) {
         Optional<Chat> existing = entityId == null
@@ -71,27 +78,54 @@ public class ChatService {
     }
 
     public List<ChatMessageDto> getMessages(User user) {
-        return getMessages(user, ChatEntityType.GLOBAL, null);
+        return getMessages(user, ChatEntityType.GLOBAL, null, null);
     }
 
     public List<ChatMessageDto> getMessages(User user, ChatEntityType entityType, UUID entityId) {
+        return getMessages(user, entityType, entityId, null);
+    }
+
+    public List<ChatMessageDto> getMessages(User user, ChatEntityType entityType, UUID entityId, UUID beforePid) {
         Chat chat = getOrCreateChat(user, entityType, entityId);
-        return messageRepository
-            .findByChatOrderByCreatedAtAsc(chat)
-            .stream()
-            .map(dtoMapper::toChatMessageDto)
-            .toList();
+        PageRequest page = PageRequest.of(0, pageSize);
+        List<ChatMessage> fetched;
+        if (beforePid == null) {
+            fetched = messageRepository.findByChatOrderByIdDesc(chat, page);
+        } else {
+            Long beforeId = messageRepository.findByPid(beforePid)
+                .map(ChatMessage::getId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown cursor"));
+            fetched = messageRepository.findByChatAndIdLessThanOrderByIdDesc(chat, beforeId, page);
+        }
+        // Query returns newest-first; reverse to chronological order for the client
+        List<ChatMessage> ordered = new ArrayList<>(fetched);
+        Collections.reverse(ordered);
+        return ordered.stream().map(dtoMapper::toChatMessageDto).toList();
     }
 
     public List<ChatMessageDto> getGoalActivity(User user, UUID goalPid) {
-        Goal goal = goalRepository.findByPidAndOwner(goalPid, user)
-            .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.NOT_FOUND, "Goal not found"));
+        return getGoalActivity(user, goalPid, null);
+    }
 
+    public List<ChatMessageDto> getGoalActivity(User user, UUID goalPid, UUID beforePid) {
+        Goal goal = goalRepository.findByPidAndOwner(goalPid, user)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
+
+        Instant beforeInstant = beforePid == null ? null
+            : messageRepository.findByPid(beforePid)
+                .map(ChatMessage::getCreatedAt)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown cursor"));
+
+        PageRequest page = PageRequest.of(0, pageSize);
         List<ChatMessage> all = new ArrayList<>();
 
         chatRepository.findByUserAndEntityTypeAndEntityId(user, ChatEntityType.GOAL, goalPid)
-            .ifPresent(goalChat -> all.addAll(messageRepository.findByChatOrderByCreatedAtAsc(goalChat)));
+            .ifPresent(goalChat -> {
+                List<ChatMessage> msgs = beforeInstant == null
+                    ? messageRepository.findByChatOrderByIdDesc(goalChat, page)
+                    : messageRepository.findByChatAndCreatedAtBeforeOrderByCreatedAtDesc(goalChat, beforeInstant, page);
+                all.addAll(msgs);
+            });
 
         List<UUID> taskPids = taskRepository.findByGoal(goal).stream()
             .map(task -> task.getPid())
@@ -99,11 +133,20 @@ public class ChatService {
         if (!taskPids.isEmpty()) {
             List<Chat> taskChats = chatRepository.findByUserAndEntityTypeAndEntityIdIn(
                 user, ChatEntityType.TASK, taskPids);
-            all.addAll(messageRepository.findByChatIn(taskChats));
+            if (!taskChats.isEmpty()) {
+                List<ChatMessage> taskMsgs = beforeInstant == null
+                    ? messageRepository.findByChatInOrderByCreatedAtDesc(taskChats, page)
+                    : messageRepository.findByChatInAndCreatedAtBeforeOrderByCreatedAtDesc(taskChats, beforeInstant, page);
+                all.addAll(taskMsgs);
+            }
         }
 
-        all.sort(Comparator.comparing(ChatMessage::getCreatedAt));
-        return all.stream().map(dtoMapper::toChatMessageDto).toList();
+        // Merge, take the pageSize most recent, then return in chronological order
+        all.sort(Comparator.comparing(ChatMessage::getCreatedAt).reversed());
+        List<ChatMessage> page_ = all.stream().limit(pageSize).toList();
+        List<ChatMessage> ordered = new ArrayList<>(page_);
+        Collections.reverse(ordered);
+        return ordered.stream().map(dtoMapper::toChatMessageDto).toList();
     }
 
     @Transactional

@@ -13,15 +13,21 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
   return ChatRepository(ref.watch(apiClientProvider));
 });
 
+const kChatPageSize = 50;
+
 class ConnieState {
   final List<Message> messages;
   final bool isLoading;
+  final bool isLoadingMore;
+  final bool hasMore;
   final String? error;
   final Message? replyingTo;
 
   const ConnieState({
     required this.messages,
     this.isLoading = false,
+    this.isLoadingMore = false,
+    this.hasMore = true,
     this.error,
     this.replyingTo,
   });
@@ -29,6 +35,8 @@ class ConnieState {
   ConnieState copyWith({
     List<Message>? messages,
     bool? isLoading,
+    bool? isLoadingMore,
+    bool? hasMore,
     String? error,
     Message? replyingTo,
     bool clearReply = false,
@@ -36,6 +44,8 @@ class ConnieState {
   }) => ConnieState(
     messages: messages ?? this.messages,
     isLoading: isLoading ?? this.isLoading,
+    isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    hasMore: hasMore ?? this.hasMore,
     error: clearError ? null : error,
     replyingTo: clearReply ? null : (replyingTo ?? this.replyingTo),
   );
@@ -61,9 +71,30 @@ class ConnieNotifier extends Notifier<ConnieState> {
   Future<void> _fetchMessages() async {
     try {
       final messages = await _repository.getMessages();
-      state = state.copyWith(messages: messages, isLoading: false, clearError: true);
+      state = state.copyWith(
+        messages: messages,
+        isLoading: false,
+        hasMore: messages.length >= kChatPageSize,
+        clearError: true,
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoadingMore || !state.hasMore || state.messages.isEmpty) return;
+    final cursor = state.messages.first.id;
+    state = state.copyWith(isLoadingMore: true);
+    try {
+      final older = await _repository.getMessages(before: cursor);
+      state = state.copyWith(
+        messages: [...older, ...state.messages],
+        isLoadingMore: false,
+        hasMore: older.length >= kChatPageSize,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoadingMore: false, error: e.toString());
     }
   }
 

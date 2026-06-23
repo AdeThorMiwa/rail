@@ -105,13 +105,15 @@ class TextBlock extends Block {
 class TableBlock extends Block {
   final List<String>? columns;
   final List<List<String>> rows;
-  const TableBlock({required super.id, this.columns, required this.rows});
+  final bool scrollable;
+  const TableBlock({required super.id, this.columns, required this.rows, this.scrollable = false});
   factory TableBlock.fromJson(Map<String, dynamic> json) => TableBlock(
     id: json['id'] as String? ?? '',
     columns: (json['columns'] as List<dynamic>?)?.map((e) => e as String).toList(),
     rows: (json['rows'] as List<dynamic>)
         .map((r) => (r as List<dynamic>).map((c) => c as String).toList())
         .toList(),
+    scrollable: json['scrollable'] as bool? ?? false,
   );
 }
 
