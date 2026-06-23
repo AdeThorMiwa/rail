@@ -49,6 +49,65 @@ public class ConnieTools {
 
     @Tool(
         description = """
+        Registers a newly detected intention from the user and hands off to the Intention Refiner.
+        Call this IMMEDIATELY when you detect a goal, achievement, task, or reminder intent — before asking any clarifying question.
+        title: the user's raw intention in plain words, exactly as you understood it.
+        Returns the proposal UUID on success, or an ERROR: message on failure.
+        """
+    )
+    @Transactional
+    public String captureIntention(String title, ToolContext toolContext) {
+        log.info("captureIntention called — title={}", title);
+
+        if (title == null || title.isBlank()) {
+            return "ERROR: title is required — intention was NOT captured.";
+        }
+
+        Object rawChatId = toolContext != null ? toolContext.getContext().get(CHAT_ID_KEY) : null;
+        if (rawChatId == null) {
+            log.error("captureIntention called with missing chatId in ToolContext");
+            return "ERROR: tool context missing — intention was NOT captured.";
+        }
+
+        UUID chatPid;
+        try {
+            chatPid = UUID.fromString(rawChatId.toString());
+        } catch (IllegalArgumentException e) {
+            log.error("captureIntention called with invalid chatId: {}", rawChatId);
+            return "ERROR: invalid chatId — intention was NOT captured.";
+        }
+
+        Chat chat = chatRepository.findByPid(chatPid).orElse(null);
+        if (chat == null) {
+            log.error("captureIntention: chat not found for pid {}", chatPid);
+            return "ERROR: chat not found — intention was NOT captured.";
+        }
+
+        boolean alreadyActive = proposalRepository
+            .findByChatAndStatus(chat, IntentionProposalStatus.REFINING)
+            .isPresent();
+        if (alreadyActive) {
+            log.warn("captureIntention: REFINING proposal already exists for chat {}", chatPid);
+            return "ERROR: an active intention is already being refined — do NOT call captureIntention again.";
+        }
+
+        IntentionProposal proposal = IntentionProposal.builder()
+            .owner(chat.getUser())
+            .chat(chat)
+            .status(IntentionProposalStatus.REFINING)
+            .synthesis(new com.rail.api.intelligence.IntentionSynthesis(
+                new com.rail.api.intelligence.IntentionBlueprint(null, title, null),
+                null
+            ))
+            .build();
+        proposalRepository.saveAndFlush(proposal);
+
+        log.info("captureIntention: created proposal {} for title='{}'", proposal.getPid(), title);
+        return proposal.getPid().toString();
+    }
+
+    @Tool(
+        description = """
         Saves the current understanding of the user's intention to the database.
         Call this only when the synthesis is COMPLETE — both intention AND goal fields must be fully populated.
         A null or missing goal field is NOT valid; wait until you have enough information to fill both fields.

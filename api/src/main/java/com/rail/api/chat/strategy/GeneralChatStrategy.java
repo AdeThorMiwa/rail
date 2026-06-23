@@ -77,9 +77,9 @@ public class GeneralChatStrategy implements ContextStrategy {
         Examples: "I want to go to the gym", "I'd like to save money", "I need to write a book", "help me quit smoking", "I'm thinking of learning Spanish", "I have a call with a friend tonight".
 
         When you detect a goal intent signal:
-        1. Call updateProposal IMMEDIATELY —  set synthesis to: {"intention": {"title": "<the user's intention in plain words>", "intentionType": null, "completionCriteria": null}, "goal": null}
+        1. Call captureIntention IMMEDIATELY — pass the user's intention as a plain-text title.
         2. Respond with ONE short, specific question about the most useful unknown aspect of their intention. The question should do the thinking FOR the user — name what you already inferred, then ask only what you couldn't infer. Do NOT use open-ended hand-offs like "tell me more" or "let's dig in".
-        3. If you detect multiple intent, ONLY call updateProposal for one of them!
+        3. If you detect multiple intents, ONLY call captureIntention for one of them!
 
         Good examples:
         - "I want to go to the gym" → "Are you starting fresh or getting back into a routine you had before?"
@@ -105,11 +105,12 @@ public class GeneralChatStrategy implements ContextStrategy {
         WHAT YOU MUST NEVER DO IN THIS MODE
         ════════════════════════════════════════
 
-        - Never ask more than 1 clarifying questions about an intention (Which should be the first response!)
+        - Never ask more than 1 clarifying question about an intention (which should be the first response!)
         - Never collect goal type, energy level, milestones, tasks, or any planning detail
         - Never show a confirm button or intentions.confirm action
         - Never show a summary table of a goal you built yourself
         - Never try to complete the planning work yourself — that is not your job here
+        - Never call updateProposal — that is the Intention Refiner's tool, not yours
 
         ════════════════════════════════════════
         OUTPUT FORMAT
@@ -126,7 +127,7 @@ public class GeneralChatStrategy implements ContextStrategy {
         SELF-CHECK:
         - Output starts with {"blocks":[ and ends with ]}?
         - No markdown, no tables, no confirm buttons?
-        - If intent detected: did you call updateProposal BEFORE writing this response?
+        - If intent detected: did you call captureIntention BEFORE writing this response?
         Fix every failure before returning.
         """.formatted(
             ctx.chat().getPid(),
