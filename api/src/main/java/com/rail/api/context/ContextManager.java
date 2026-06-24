@@ -3,6 +3,7 @@ package com.rail.api.context;
 import com.rail.api.entity.Chat;
 import com.rail.api.entity.ChatMessage;
 import com.rail.api.entity.IntentionProposal;
+import com.rail.api.entity.NextGoalProposal;
 import com.rail.api.entity.UserConnieLog;
 import com.rail.api.entity.UserSchedulingProfile;
 import com.rail.api.repository.ChatMessageRepository;
@@ -34,10 +35,29 @@ public class ContextManager {
         IntentionProposal activeProposal
     ) {
         List<ChatMessage> history = strategy.fetchHistory(chat, messageRepository, activeProposal);
+        return buildContext(chat, userInput, history, Optional.ofNullable(activeProposal), Optional.empty());
+    }
+
+    public ConversationContext build(
+        Chat chat,
+        String userInput,
+        ContextStrategy strategy,
+        NextGoalProposal activeNextGoalProposal
+    ) {
+        List<ChatMessage> history = strategy.fetchHistory(chat, messageRepository);
+        return buildContext(chat, userInput, history, Optional.empty(), Optional.ofNullable(activeNextGoalProposal));
+    }
+
+    private ConversationContext buildContext(
+        Chat chat,
+        String userInput,
+        List<ChatMessage> history,
+        Optional<IntentionProposal> activeProposal,
+        Optional<NextGoalProposal> activeNextGoalProposal
+    ) {
         Optional<UserSchedulingProfile> schedulingProfile =
             schedulingProfileRepository.findByUser(chat.getUser());
         List<UserConnieLog> recentLogs = connieLogRepository.findRecentN(chat.getUser(), connieLogsContextLimit);
-        // findRecentN returns newest-first; reverse to oldest-first for the LLM
         List<UserConnieLog> connieLogs = new ArrayList<>(recentLogs);
         java.util.Collections.reverse(connieLogs);
 
@@ -45,7 +65,8 @@ public class ContextManager {
             chat.getUser(),
             chat,
             history,
-            Optional.ofNullable(activeProposal),
+            activeProposal,
+            activeNextGoalProposal,
             userInput,
             ZonedDateTime.now(),
             schedulingProfile,

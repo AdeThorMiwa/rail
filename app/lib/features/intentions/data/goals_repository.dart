@@ -35,6 +35,17 @@ class GoalsRepository {
     await _client.dio.post('/intentions', data: {'proposalId': proposalId});
   }
 
+  Future<void> confirmNextGoalProposal(String proposalId) async {
+    await _client.dio.post('/intentions/next-goal-proposals/$proposalId/confirm');
+  }
+
+  Future<void> abandonIntention(String intentionPid, String reason) async {
+    await _client.dio.post(
+      '/intentions/$intentionPid/abandon',
+      data: {'reason': reason},
+    );
+  }
+
   Future<void> slipGoal(String goalPid, {String? note}) async {
     await _client.dio.post('/goals/$goalPid/slip', data: {'note': note});
   }

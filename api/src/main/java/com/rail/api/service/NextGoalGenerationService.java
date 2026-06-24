@@ -1,23 +1,27 @@
 package com.rail.api.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rail.api.entity.Chat;
 import com.rail.api.entity.Goal;
 import com.rail.api.entity.GoalStatus;
 import com.rail.api.entity.GoalType;
 import com.rail.api.entity.Intention;
 import com.rail.api.entity.IntentionStatus;
 import com.rail.api.entity.Milestone;
+import com.rail.api.entity.NextGoalProposal;
+import com.rail.api.entity.NextGoalProposalStatus;
 import com.rail.api.entity.OccurrenceStatus;
 import com.rail.api.entity.Task;
 import com.rail.api.entity.TaskStatus;
 import com.rail.api.entity.User;
 import com.rail.api.entity.UserConnieLog;
 import com.rail.api.entity.UserConnieLogType;
-import com.rail.api.event.SsePublishEvent;
+import com.rail.api.event.NextGoalProposalCreatedEvent;
 import com.rail.api.intelligence.GoalBlueprint;
 import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.GoalTargetRepository;
 import com.rail.api.repository.MilestoneRepository;
+import com.rail.api.repository.NextGoalProposalRepository;
 import com.rail.api.repository.TaskOccurrenceRepository;
 import com.rail.api.repository.TaskRepository;
 import com.rail.api.repository.TaskTargetRepository;
@@ -26,7 +30,6 @@ import com.rail.api.repository.UserSchedulingProfileRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,41 +67,26 @@ public class NextGoalGenerationService {
     private final MilestoneRepository milestoneRepository;
     private final UserSchedulingProfileRepository profileRepository;
     private final UserConnieLogRepository connieLogRepository;
-    private final GoalGenerationService goalGenerationService;
+    private final NextGoalProposalRepository nextGoalProposalRepository;
+    private final ChatService chatService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void generateNextGoal(User user, UUID completedGoalPid) {
-        Goal completedGoal = goalRepository
-            .findByPid(completedGoalPid)
-            .orElse(null);
+        Goal completedGoal = goalRepository.findByPid(completedGoalPid).orElse(null);
         if (completedGoal == null) {
-            log.warn(
-                "[next-goal] completed goal {} not found — skipping",
-                completedGoalPid
-            );
+            log.warn("[next-goal] completed goal {} not found — skipping", completedGoalPid);
             return;
         }
         Intention intention = completedGoal.getIntention();
 
         if (intention.getStatus() != IntentionStatus.ACTIVE) {
-            log.info(
-                "[next-goal] skipping — intention {} is {}",
-                intention.getPid(),
-                intention.getStatus()
-            );
+            log.info("[next-goal] skipping — intention {} is {}", intention.getPid(), intention.getStatus());
             return;
         }
 
-        if (
-            goalRepository
-                .findByIntentionAndStatus(intention, GoalStatus.ACTIVE)
-                .isPresent()
-        ) {
-            log.info(
-                "[next-goal] skipping — active goal already exists for intention {}",
-                intention.getPid()
-            );
+        if (goalRepository.findByIntentionAndStatus(intention, GoalStatus.ACTIVE).isPresent()) {
+            log.info("[next-goal] skipping — active goal already exists for intention {}", intention.getPid());
             return;
         }
 
@@ -106,30 +94,24 @@ public class NextGoalGenerationService {
         GoalBlueprint blueprint = callLlm(systemPrompt);
 
         if (blueprint == null) {
-            log.error(
-                "[next-goal] LLM failed to produce a valid GoalBlueprint for intention {}",
-                intention.getPid()
-            );
+            log.error("[next-goal] LLM failed to produce a valid GoalBlueprint for intention {}", intention.getPid());
             return;
         }
 
-        Goal next = goalGenerationService.generateFromBlueprint(
-            intention,
-            blueprint
-        );
-        log.info(
-            "[next-goal] created goal {} for intention {}",
-            next.getPid(),
-            intention.getPid()
+        Chat globalChat = chatService.getChat(user);
+
+        NextGoalProposal proposal = nextGoalProposalRepository.saveAndFlush(
+            NextGoalProposal.builder()
+                .owner(user)
+                .intention(intention)
+                .chat(globalChat)
+                .goalBlueprint(blueprint)
+                .status(NextGoalProposalStatus.REFINING)
+                .build()
         );
 
-        eventPublisher.publishEvent(
-            new SsePublishEvent(
-                user.getPid(),
-                "intention_updated",
-                Map.of("intentionPid", intention.getPid().toString())
-            )
-        );
+        log.info("[next-goal] created proposal {} for intention {}", proposal.getPid(), intention.getPid());
+        eventPublisher.publishEvent(new NextGoalProposalCreatedEvent(user, proposal.getPid()));
     }
 
     private GoalBlueprint callLlm(String systemPrompt) {

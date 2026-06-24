@@ -8,9 +8,12 @@ import com.rail.api.entity.CycleStatus;
 import com.rail.api.entity.Goal;
 import com.rail.api.entity.IntentionProposal;
 import com.rail.api.entity.IntentionProposalStatus;
+import com.rail.api.entity.NextGoalProposal;
+import com.rail.api.entity.NextGoalProposalStatus;
 import com.rail.api.entity.Task;
 import com.rail.api.entity.TaskStatus;
 import com.rail.api.entity.UserCycle;
+import com.rail.api.intelligence.GoalBlueprint;
 import com.rail.api.intelligence.IntentionSynthesis;
 import com.rail.api.intelligence.RetroAnalysis;
 import com.rail.api.entity.ToolCallLog;
@@ -18,6 +21,7 @@ import com.rail.api.repository.ChatRepository;
 import com.rail.api.repository.CycleFocusRepository;
 import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.IntentionProposalRepository;
+import com.rail.api.repository.NextGoalProposalRepository;
 import com.rail.api.repository.TaskRepository;
 import com.rail.api.repository.ToolCallLogRepository;
 import com.rail.api.repository.UserCycleRepository;
@@ -42,6 +46,7 @@ public class ConnieTools {
 
     private final ChatRepository chatRepository;
     private final IntentionProposalRepository proposalRepository;
+    private final NextGoalProposalRepository nextGoalProposalRepository;
     private final UserCycleRepository cycleRepository;
     private final GoalRepository goalRepository;
     private final CycleFocusRepository cycleFocusRepository;
@@ -189,6 +194,78 @@ public class ConnieTools {
             logToolCall(chat, "updateProposal", argsJson, pid);
         } catch (Exception e) {
             logToolCall(chat, "updateProposal", "{}", pid);
+        }
+        return pid;
+    }
+
+    @Tool(
+        description = """
+        Saves the updated blueprint for the next goal currently being refined.
+        Call this when you are ready to show the confirmation screen — the blueprint must be fully populated.
+        context: a concise summary of any adjustments the user requested during this refinement conversation.
+        Returns the proposal UUID on success, or an ERROR: message on failure.
+        Do NOT show a Confirm Goal button if this returns an ERROR.
+        """
+    )
+    @Transactional
+    public String updateNextGoalProposal(
+        GoalBlueprint blueprint,
+        String context,
+        ToolContext toolContext
+    ) {
+        log.info("updateNextGoalProposal called — goalType={}, tasks={}",
+            blueprint != null ? blueprint.goalType() : "null",
+            blueprint != null && blueprint.tasks() != null ? blueprint.tasks().size() : 0);
+
+        if (blueprint == null) {
+            return "ERROR: blueprint is null — proposal was NOT saved. Do NOT show a Confirm Goal button.";
+        }
+
+        Object rawChatId = toolContext != null ? toolContext.getContext().get(CHAT_ID_KEY) : null;
+        if (rawChatId == null) {
+            log.error("updateNextGoalProposal called with missing chatId in ToolContext");
+            return "ERROR: tool context missing — proposal was NOT saved. Do NOT show a Confirm Goal button.";
+        }
+
+        UUID chatPid;
+        try {
+            chatPid = UUID.fromString(rawChatId.toString());
+        } catch (IllegalArgumentException e) {
+            log.error("updateNextGoalProposal called with invalid chatId: {}", rawChatId);
+            return "ERROR: invalid chatId — proposal was NOT saved. Do NOT show a Confirm Goal button.";
+        }
+
+        Chat chat = chatRepository.findByPid(chatPid).orElse(null);
+        if (chat == null) {
+            log.error("updateNextGoalProposal: chat not found for pid {}", chatPid);
+            return "ERROR: chat not found — proposal was NOT saved. Do NOT show a Confirm Goal button.";
+        }
+
+        NextGoalProposal proposal = nextGoalProposalRepository
+            .findByChatAndStatus(chat, NextGoalProposalStatus.REFINING)
+            .orElse(null);
+        if (proposal == null) {
+            log.error("updateNextGoalProposal: no REFINING proposal found for chat {}", chatPid);
+            return "ERROR: no active goal proposal found — proposal was NOT saved. Do NOT show a Confirm Goal button.";
+        }
+
+        proposal.setGoalBlueprint(blueprint);
+        if (context != null && !context.isBlank()) {
+            proposal.setContext(context);
+        }
+        nextGoalProposalRepository.saveAndFlush(proposal);
+
+        String pid = proposal.getPid().toString();
+        log.info("updateNextGoalProposal: saved proposal {} — goalType={}, tasks={}",
+            pid, blueprint.goalType(),
+            blueprint.tasks() != null ? blueprint.tasks().size() : 0);
+        try {
+            String argsJson = objectMapper.writeValueAsString(
+                java.util.Map.of("blueprint", blueprint, "context", context != null ? context : "")
+            );
+            logToolCall(chat, "updateNextGoalProposal", argsJson, pid);
+        } catch (Exception e) {
+            logToolCall(chat, "updateNextGoalProposal", "{}", pid);
         }
         return pid;
     }

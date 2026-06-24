@@ -5,6 +5,7 @@ import com.rail.api.chat.strategy.CyclePlanningStrategy;
 import com.rail.api.chat.strategy.CycleRetroStrategy;
 import com.rail.api.chat.strategy.EntityChatStrategy;
 import com.rail.api.chat.strategy.GeneralChatStrategy;
+import com.rail.api.chat.strategy.GoalRefinementStrategy;
 import com.rail.api.chat.strategy.IntentionRefinementStrategy;
 import com.rail.api.context.ContextManager;
 import com.rail.api.context.ContextStrategy;
@@ -19,6 +20,8 @@ import com.rail.api.entity.GoalStatus;
 import com.rail.api.entity.Intention;
 import com.rail.api.entity.IntentionProposal;
 import com.rail.api.entity.IntentionProposalStatus;
+import com.rail.api.entity.NextGoalProposal;
+import com.rail.api.entity.NextGoalProposalStatus;
 import com.rail.api.entity.MessageSender;
 import com.rail.api.entity.Milestone;
 import com.rail.api.entity.Task;
@@ -33,6 +36,7 @@ import com.rail.api.repository.CycleFocusRepository;
 import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.IntentionProposalRepository;
 import com.rail.api.repository.MilestoneRepository;
+import com.rail.api.repository.NextGoalProposalRepository;
 import com.rail.api.repository.TaskRepository;
 import com.rail.api.repository.ToolCallLogRepository;
 import com.rail.api.repository.UserCycleRepository;
@@ -75,6 +79,7 @@ public class LlmChatHandler implements ChatHandler {
     private final ConnieTools connieTools;
     private final ContextManager contextManager;
     private final IntentionProposalRepository proposalRepository;
+    private final NextGoalProposalRepository nextGoalProposalRepository;
     private final ChatRepository chatRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final GoalRepository goalRepository;
@@ -100,10 +105,14 @@ public class LlmChatHandler implements ChatHandler {
     @Value("${rail.connie.model.default:deepseek-v4-flash}")
     private String defaultConnieModel;
 
+    @Value("${rail.connie.model.refiner:deepseek-v4-pro}")
+    private String refinerModel;
+
     @Override
     public ChatHandlerResult handle(Chat chat, String userInput) {
         ContextStrategy strategy;
         Optional<IntentionProposal> activeProposal = Optional.empty();
+        Optional<NextGoalProposal> activeNextGoalProposal = Optional.empty();
 
         if (chat.getEntityType() == ChatEntityType.CYCLE) {
             activeProposal = proposalRepository.findByChatAndStatus(
@@ -133,21 +142,26 @@ public class LlmChatHandler implements ChatHandler {
         ) {
             strategy = buildEntityStrategy(chat);
         } else {
-            activeProposal = proposalRepository.findByChatAndStatus(
-                chat,
-                IntentionProposalStatus.REFINING
-            );
-            strategy = activeProposal.isPresent()
-                ? intentionRefinementStrategy
-                : generalChatStrategy;
+            // GLOBAL chat: next-goal proposal takes priority over intention proposal
+            Optional<NextGoalProposal> ngp = nextGoalProposalRepository
+                .findByChatAndStatus(chat, NextGoalProposalStatus.REFINING);
+            if (ngp.isPresent()) {
+                activeNextGoalProposal = ngp;
+                strategy = buildGoalRefinementStrategy(ngp.get());
+            } else {
+                activeProposal = proposalRepository.findByChatAndStatus(
+                    chat,
+                    IntentionProposalStatus.REFINING
+                );
+                strategy = activeProposal.isPresent()
+                    ? intentionRefinementStrategy
+                    : generalChatStrategy;
+            }
         }
 
-        ConversationContext ctx = contextManager.build(
-            chat,
-            userInput,
-            strategy,
-            activeProposal.orElse(null)
-        );
+        ConversationContext ctx = activeNextGoalProposal.isPresent()
+            ? contextManager.build(chat, userInput, strategy, activeNextGoalProposal.get())
+            : contextManager.build(chat, userInput, strategy, activeProposal.orElse(null));
 
         List<Message> messages = buildMessages(ctx, strategy);
 
@@ -352,6 +366,10 @@ public class LlmChatHandler implements ChatHandler {
             carryOvers,
             defaultConnieModel
         );
+    }
+
+    private GoalRefinementStrategy buildGoalRefinementStrategy(NextGoalProposal proposal) {
+        return new GoalRefinementStrategy(proposal, objectMapper, goalRepository, refinerModel);
     }
 
     private List<Task> loadCarryOverCandidates(User user) {
@@ -674,11 +692,11 @@ public class LlmChatHandler implements ChatHandler {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(strategy.systemPrompt(ctx)));
 
-        // Anchor for tool log fetch: proposal start for intention refinement (so captureIntention
-        // logs — created before the first CONNIE message — are not missed), otherwise the oldest
-        // message in the history window.
+        // Anchor for tool log fetch: proposal start keeps tool calls made before the first
+        // CONNIE message in scope. Check both proposal types; fall back to oldest history message.
         java.time.Instant toolLogStart = ctx.activeProposal()
             .map(com.rail.api.entity.IntentionProposal::getCreatedAt)
+            .or(() -> ctx.activeNextGoalProposal().map(com.rail.api.entity.NextGoalProposal::getCreatedAt))
             .orElseGet(() -> ctx.recentHistory().isEmpty()
                 ? java.time.Instant.now()
                 : ctx.recentHistory().get(0).getCreatedAt());

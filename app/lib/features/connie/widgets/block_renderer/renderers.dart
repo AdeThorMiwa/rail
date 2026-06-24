@@ -253,7 +253,7 @@ class _ActionButton extends StatelessWidget {
     final style = item.style;
     final isPrimary =
         style == 'primary' || style == 'resume' || style == 'success';
-    final isDanger = style == 'drop';
+    final isDanger = style == 'destructive';
 
     return FilledButton(
       onPressed: (isLoading || isDisabled) ? null : onTap,

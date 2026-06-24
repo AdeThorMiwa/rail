@@ -26,7 +26,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             SELECT t FROM Task t
             JOIN t.goal g
             JOIN g.intention i
-            WHERE i.owner = :owner AND t.status = 'PENDING' AND g.status = 'ACTIVE'
+            WHERE i.owner = :owner AND t.status = 'PENDING' AND g.status = 'ACTIVE' AND i.status <> 'ABANDONED'
             ORDER BY t.priority ASC, g.targetDate ASC NULLS LAST
         """
     )

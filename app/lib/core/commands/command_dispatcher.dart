@@ -27,6 +27,19 @@ class CommandDispatcher {
           await ref.read(goalsProvider.notifier).confirmProposal(proposalId);
         }
 
+      case 'goals.nextgoal.confirm':
+        final proposalId = params['proposalId'] as String?;
+        if (proposalId != null) {
+          await ref.read(goalsProvider.notifier).confirmNextGoalProposal(proposalId);
+        }
+
+      case 'intentions.abandon':
+        final intentionPid = params['intentionPid'] as String?;
+        final reason = params['reason'] as String? ?? '';
+        if (intentionPid != null) {
+          await ref.read(goalsProvider.notifier).abandonIntention(intentionPid, reason);
+        }
+
       case 'chats.reply':
         if (parentMessage != null) {
           ref.read(connieProvider.notifier).setReply(parentMessage);

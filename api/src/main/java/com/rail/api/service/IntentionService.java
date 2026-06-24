@@ -11,17 +11,23 @@ import com.rail.api.entity.IntentionProposal;
 import com.rail.api.entity.IntentionProposalStatus;
 import com.rail.api.entity.IntentionStatus;
 import com.rail.api.entity.IntentionType;
+import com.rail.api.entity.NextGoalProposal;
+import com.rail.api.entity.NextGoalProposalStatus;
 import com.rail.api.entity.TaskStatus;
 import com.rail.api.entity.User;
 import com.rail.api.event.IntentionConfirmedEvent;
+import com.rail.api.event.SsePublishEvent;
 import com.rail.api.repository.DailyScheduleEntryRepository;
 import com.rail.api.repository.GoalRepository;
+import com.rail.api.scheduler.ScheduleGenerationService;
 import com.rail.api.repository.GoalTargetRepository;
 import com.rail.api.repository.IntentionProposalRepository;
 import com.rail.api.repository.IntentionRepository;
 import com.rail.api.repository.MilestoneRepository;
+import com.rail.api.repository.NextGoalProposalRepository;
 import com.rail.api.repository.TaskTargetRepository;
 import com.rail.api.repository.UserSchedulingProfileRepository;
+import java.util.Map;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -45,6 +51,7 @@ public class IntentionService {
 
     private final IntentionRepository intentionRepository;
     private final IntentionProposalRepository proposalRepository;
+    private final NextGoalProposalRepository nextGoalProposalRepository;
     private final GoalRepository goalRepository;
     private final GoalTargetRepository goalTargetRepository;
     private final MilestoneRepository milestoneRepository;
@@ -52,6 +59,8 @@ public class IntentionService {
     private final DailyScheduleEntryRepository dailyScheduleEntryRepository;
     private final UserSchedulingProfileRepository profileRepository;
     private final IntentionGenerationService generationService;
+    private final GoalGenerationService goalGenerationService;
+    private final ScheduleGenerationService scheduleGenerationService;
     private final StreakService streakService;
     private final DtoMapper dtoMapper;
     private final ApplicationEventPublisher eventPublisher;
@@ -108,6 +117,61 @@ public class IntentionService {
             )
         );
         return toDto(intention, true);
+    }
+
+    @Transactional
+    public IntentionDto confirmNextGoalProposal(User user, UUID proposalId) {
+        NextGoalProposal proposal = nextGoalProposalRepository
+            .findByPidAndOwner(proposalId, user)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Next goal proposal not found"));
+
+        if (proposal.getStatus() != NextGoalProposalStatus.REFINING) {
+            throw new ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Proposal has already been " + proposal.getStatus().name().toLowerCase()
+            );
+        }
+
+        if (proposal.getGoalBlueprint() == null) {
+            throw new ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Proposal has no blueprint yet — continue the conversation with Connie"
+            );
+        }
+
+        Intention intention = proposal.getIntention();
+        goalGenerationService.generateFromBlueprint(intention, proposal.getGoalBlueprint());
+
+        proposal.setStatus(NextGoalProposalStatus.CREATED);
+        nextGoalProposalRepository.save(proposal);
+
+        eventPublisher.publishEvent(new SsePublishEvent(
+            user.getPid(),
+            "intention_updated",
+            Map.of("intentionPid", intention.getPid().toString())
+        ));
+
+        return toDto(intention, true);
+    }
+
+    @Transactional
+    public void abandonIntention(User user, UUID pid, String reason) {
+        Intention intention = resolveIntention(user, pid);
+        if (intention.getStatus() == IntentionStatus.ABANDONED) {
+            throw new ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Intention is already abandoned"
+            );
+        }
+        intention.setStatus(IntentionStatus.ABANDONED);
+        intention.setAbandonedReason(reason);
+        intentionRepository.save(intention);
+        eventPublisher.publishEvent(new SsePublishEvent(
+            user.getPid(),
+            "intention_updated",
+            Map.of("intentionPid", pid.toString())
+        ));
+        scheduleGenerationService.generateAsync(user, scheduleGenerationService.todayFor(user));
     }
 
     @Transactional(readOnly = true)

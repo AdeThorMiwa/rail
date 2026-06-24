@@ -96,7 +96,7 @@ class ScheduleEntryAssembler {
                 !p.end().isAfter(dayEnd);
             if (!inDay && !frozenStarts.contains(p.start())) {
                 entries.add(
-                    buildTaskEntry(schedule, p.task(), p.start(), p.end())
+                    buildTaskEntry(schedule, p.task(), p.start(), p.end(), p.schedulingNote())
                 );
             }
         }
@@ -146,7 +146,7 @@ class ScheduleEntryAssembler {
                 continue;
             }
 
-            entries.add(buildTaskEntry(schedule, p.task(), p.start(), p.end()));
+            entries.add(buildTaskEntry(schedule, p.task(), p.start(), p.end(), p.schedulingNote()));
 
             LocalTime nextStart = (i + 1 < windowSlots.size())
                 ? windowSlots.get(i + 1).start()
@@ -174,7 +174,8 @@ class ScheduleEntryAssembler {
         DailySchedule schedule,
         Task task,
         LocalTime start,
-        LocalTime end
+        LocalTime end,
+        String schedulingNote
     ) {
         return DailyScheduleEntry.builder()
             .dailySchedule(schedule)
@@ -182,6 +183,7 @@ class ScheduleEntryAssembler {
             .entryType(DailyScheduleEntryType.TASK)
             .startTime(start)
             .endTime(end)
+            .notes(schedulingNote)
             .build();
     }
 

@@ -3,6 +3,7 @@ package com.rail.api.context;
 import com.rail.api.entity.Chat;
 import com.rail.api.entity.ChatMessage;
 import com.rail.api.entity.IntentionProposal;
+import com.rail.api.entity.NextGoalProposal;
 import com.rail.api.entity.User;
 import com.rail.api.entity.UserConnieLog;
 import com.rail.api.entity.UserSchedulingProfile;
@@ -15,6 +16,7 @@ public record ConversationContext(
     Chat chat,
     List<ChatMessage> recentHistory,
     Optional<IntentionProposal> activeProposal,
+    Optional<NextGoalProposal> activeNextGoalProposal,
     String currentInput,
     ZonedDateTime now,
     Optional<UserSchedulingProfile> schedulingProfile,

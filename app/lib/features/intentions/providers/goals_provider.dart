@@ -23,6 +23,18 @@ class GoalsNotifier extends AsyncNotifier<List<GoalListItem>> {
     await repo.confirmProposal(proposalId);
   }
 
+  Future<void> confirmNextGoalProposal(String proposalId) async {
+    final repo = ref.read(goalsRepositoryProvider);
+    await repo.confirmNextGoalProposal(proposalId);
+    ref.invalidateSelf();
+  }
+
+  Future<void> abandonIntention(String intentionPid, String reason) async {
+    final repo = ref.read(goalsRepositoryProvider);
+    await repo.abandonIntention(intentionPid, reason);
+    ref.invalidateSelf();
+  }
+
   Future<void> completeGoal(String goalPid, {String? notes}) async {
     final repo = ref.read(goalsRepositoryProvider);
     await repo.completeGoal(goalPid, notes: notes);

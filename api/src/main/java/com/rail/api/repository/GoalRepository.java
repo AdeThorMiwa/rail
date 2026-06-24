@@ -21,7 +21,7 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
         """
             SELECT g FROM Goal g
             JOIN g.intention i
-            WHERE i.owner = :owner AND g.status = :status
+            WHERE i.owner = :owner AND g.status = :status AND i.status <> 'ABANDONED'
             ORDER BY g.createdAt DESC
         """
     )

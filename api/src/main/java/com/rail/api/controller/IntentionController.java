@@ -1,6 +1,7 @@
 package com.rail.api.controller;
 
 import com.rail.api.component.UserResolver;
+import com.rail.api.dto.AbandonIntentionRequest;
 import com.rail.api.dto.ConfirmIntentionRequest;
 import com.rail.api.dto.IntentionDto;
 import com.rail.api.dto.UpdateIntentionStatusRequest;
@@ -51,6 +52,27 @@ public class IntentionController {
         @PathVariable UUID pid
     ) {
         return intentionService.get(userResolver.resolve(userPid), pid);
+    }
+
+    @PostMapping("/next-goal-proposals/{proposalPid}/confirm")
+    public IntentionDto confirmNextGoalProposal(
+        @AuthenticationPrincipal UUID userPid,
+        @PathVariable UUID proposalPid
+    ) {
+        return intentionService.confirmNextGoalProposal(
+            userResolver.resolve(userPid),
+            proposalPid
+        );
+    }
+
+    @PostMapping("/{pid}/abandon")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void abandon(
+        @AuthenticationPrincipal UUID userPid,
+        @PathVariable UUID pid,
+        @Valid @RequestBody AbandonIntentionRequest req
+    ) {
+        intentionService.abandonIntention(userResolver.resolve(userPid), pid, req.reason());
     }
 
     @PatchMapping("/{pid}/status")

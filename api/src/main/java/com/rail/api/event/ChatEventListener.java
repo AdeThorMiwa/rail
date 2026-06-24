@@ -3,9 +3,11 @@ package com.rail.api.event;
 import com.rail.api.chat.MessageBuilder;
 import com.rail.api.entity.ChatEntityType;
 import com.rail.api.entity.GoalType;
+import com.rail.api.entity.NextGoalProposal;
 import com.rail.api.entity.Task;
 import com.rail.api.entity.TaskCompletionType;
 import com.rail.api.entity.TaskFlexibility;
+import com.rail.api.repository.NextGoalProposalRepository;
 import com.rail.api.service.ChatService;
 import com.rail.api.service.CycleService;
 import com.rail.api.sse.SseService;
@@ -28,6 +30,7 @@ public class ChatEventListener {
     private final CycleService cycleService;
     private final SseService sseService;
     private final MessageBuilder messageBuilder;
+    private final NextGoalProposalRepository nextGoalProposalRepository;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -98,6 +101,27 @@ public class ChatEventListener {
             }
         } catch (Exception e) {
             log.error("onIntentionConfirmed chat trigger failed: {}", e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onNextGoalProposalCreated(NextGoalProposalCreatedEvent event) {
+        NextGoalProposal proposal = nextGoalProposalRepository
+            .findByPidAndOwner(event.proposalPid(), event.user())
+            .orElse(null);
+        if (proposal == null) {
+            log.warn("onNextGoalProposalCreated: proposal {} not found", event.proposalPid());
+            return;
+        }
+        String trigger = "[SYSTEM: A new goal blueprint has been generated for your intention \"%s\". Present it to the user.]"
+            .formatted(proposal.getIntention().getTitle());
+        try {
+            chatService.sendOpeningLlmMessage(event.user(), ChatEntityType.GLOBAL, null, trigger);
+        } catch (Exception e) {
+            log.error("onNextGoalProposalCreated: failed to send opening message for proposal {}: {}",
+                event.proposalPid(), e.getMessage(), e);
         }
     }
 

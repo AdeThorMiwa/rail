@@ -67,7 +67,7 @@ class TaskTimePlacer {
                 t.getDurationMinutes() != null ? t.getDurationMinutes() : 60;
             LocalTime start = t.getFixedTime();
             LocalTime end = start.plusMinutes(dur);
-            fixedPlacements.add(new Placement(start, end, t));
+            fixedPlacements.add(new Placement(start, end, t, null));
             occupied.add(new TimeSlot(start, end));
         }
 
@@ -163,7 +163,7 @@ class TaskTimePlacer {
             LocalTime end = cursor.plusMinutes(dur);
             if (end.isAfter(windowEnd)) break;
 
-            placements.add(new Placement(cursor, end, t));
+            placements.add(new Placement(cursor, end, t, sel.schedulingNote()));
             occupied.add(new TimeSlot(cursor, end));
 
             cursor = end.plusMinutes(bufferMinutes);
