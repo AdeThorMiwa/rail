@@ -13,11 +13,13 @@ import com.rail.api.entity.TaskStatus;
 import com.rail.api.entity.UserCycle;
 import com.rail.api.intelligence.IntentionSynthesis;
 import com.rail.api.intelligence.RetroAnalysis;
+import com.rail.api.entity.ToolCallLog;
 import com.rail.api.repository.ChatRepository;
 import com.rail.api.repository.CycleFocusRepository;
 import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.IntentionProposalRepository;
 import com.rail.api.repository.TaskRepository;
+import com.rail.api.repository.ToolCallLogRepository;
 import com.rail.api.repository.UserCycleRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ public class ConnieTools {
     private final GoalRepository goalRepository;
     private final CycleFocusRepository cycleFocusRepository;
     private final TaskRepository taskRepository;
+    private final ToolCallLogRepository toolCallLogRepository;
     private final ConnieProfileService connieProfileService;
     private final ObjectMapper objectMapper;
 
@@ -102,8 +105,10 @@ public class ConnieTools {
             .build();
         proposalRepository.saveAndFlush(proposal);
 
-        log.info("captureIntention: created proposal {} for title='{}'", proposal.getPid(), title);
-        return proposal.getPid().toString();
+        String pid = proposal.getPid().toString();
+        log.info("captureIntention: created proposal {} for title='{}'", pid, title);
+        logToolCall(chat, "captureIntention", "{\"title\":" + escapeJson(title) + "}", pid);
+        return pid;
     }
 
     @Tool(
@@ -177,6 +182,14 @@ public class ConnieTools {
             synthesis.goal().goalType(),
             synthesis.goal().tasks() != null ? synthesis.goal().tasks().size() : 0,
             synthesis.goal().recurrence());
+        try {
+            String argsJson = objectMapper.writeValueAsString(
+                java.util.Map.of("synthesis", synthesis, "context", context != null ? context : "")
+            );
+            logToolCall(chat, "updateProposal", argsJson, pid);
+        } catch (Exception e) {
+            logToolCall(chat, "updateProposal", "{}", pid);
+        }
         return pid;
     }
 
@@ -287,7 +300,9 @@ public class ConnieTools {
             goals.size(),
             cyclePid
         );
-        return "Focus goals saved: " + names;
+        String result = "Focus goals saved: " + names;
+        logToolCall(chat, "setCycleFocus", "{\"goalPids\":" + escapeJson(String.join(",", goalPids)) + "}", result);
+        return result;
     }
 
     @Tool(
@@ -362,7 +377,9 @@ public class ConnieTools {
         );
         String keptPart = kept > 0 ? " Kept %d task(s).".formatted(kept) : "";
         String droppedPart = !dropped.isEmpty() ? " Dropped: %s.".formatted(String.join(", ", dropped)) : "";
-        return "Carry-overs resolved." + keptPart + droppedPart;
+        String result = "Carry-overs resolved." + keptPart + droppedPart;
+        logToolCall(chat, "resolveCarryOvers", "{\"keep\":" + keepPids.size() + ",\"drop\":" + dropPids.size() + "}", result);
+        return result;
     }
 
     @Tool(
@@ -461,7 +478,9 @@ public class ConnieTools {
             cyclePid,
             chat.getUser().getPid()
         );
-        return "Retro concluded. Cycle is now COMPLETED.";
+        String result = "Retro concluded. Cycle is now COMPLETED.";
+        logToolCall(chat, "concludeRetro", "{\"summary\":" + escapeJson(summary) + "}", result);
+        return result;
     }
 
     @Tool(
@@ -501,7 +520,27 @@ public class ConnieTools {
             "updatePreference: saved preference for user {}",
             chat.getUser().getPid()
         );
+        logToolCall(chat, "updatePreference", "{\"preference\":" + escapeJson(preference) + "}", "saved");
         return "saved";
+    }
+
+    private void logToolCall(Chat chat, String toolName, String arguments, String result) {
+        try {
+            toolCallLogRepository.save(ToolCallLog.builder()
+                .chat(chat)
+                .callId(UUID.randomUUID().toString())
+                .toolName(toolName)
+                .arguments(arguments)
+                .result(result)
+                .build());
+        } catch (Exception e) {
+            log.warn("logToolCall: failed to persist tool call log for {}: {}", toolName, e.getMessage());
+        }
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) return "null";
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private boolean taskBelongsToUser(

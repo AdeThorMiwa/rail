@@ -33,7 +33,7 @@ public class ContextManager {
         ContextStrategy strategy,
         IntentionProposal activeProposal
     ) {
-        List<ChatMessage> history = strategy.fetchHistory(chat, messageRepository);
+        List<ChatMessage> history = strategy.fetchHistory(chat, messageRepository, activeProposal);
         Optional<UserSchedulingProfile> schedulingProfile =
             schedulingProfileRepository.findByUser(chat.getUser());
         List<UserConnieLog> recentLogs = connieLogRepository.findRecentN(chat.getUser(), connieLogsContextLimit);

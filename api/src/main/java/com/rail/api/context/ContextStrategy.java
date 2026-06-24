@@ -2,6 +2,7 @@ package com.rail.api.context;
 
 import com.rail.api.entity.Chat;
 import com.rail.api.entity.ChatMessage;
+import com.rail.api.entity.IntentionProposal;
 import com.rail.api.entity.UserConnieLog;
 import com.rail.api.entity.UserConnieLogType;
 import com.rail.api.repository.ChatMessageRepository;
@@ -14,6 +15,10 @@ import org.springframework.data.domain.PageRequest;
 public interface ContextStrategy {
 
     List<ChatMessage> fetchHistory(Chat chat, ChatMessageRepository repo);
+
+    default List<ChatMessage> fetchHistory(Chat chat, ChatMessageRepository repo, IntentionProposal proposal) {
+        return fetchHistory(chat, repo);
+    }
 
     String systemPrompt(ConversationContext ctx);
 

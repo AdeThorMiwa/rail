@@ -24,6 +24,8 @@ public interface ChatMessageRepository
     List<ChatMessage> findByChatInOrderByCreatedAtDesc(List<Chat> chats, Pageable pageable);
     List<ChatMessage> findByChatInAndCreatedAtBeforeOrderByCreatedAtDesc(List<Chat> chats, java.time.Instant before, Pageable pageable);
 
+    List<ChatMessage> findByChatAndCreatedAtAfterOrderByCreatedAtAsc(Chat chat, java.time.Instant after);
+
     Optional<ChatMessage> findByPidAndChat(UUID pid, Chat chat);
     Optional<ChatMessage> findByPid(UUID pid);
 }

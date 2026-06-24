@@ -34,6 +34,7 @@ import com.rail.api.repository.GoalRepository;
 import com.rail.api.repository.IntentionProposalRepository;
 import com.rail.api.repository.MilestoneRepository;
 import com.rail.api.repository.TaskRepository;
+import com.rail.api.repository.ToolCallLogRepository;
 import com.rail.api.repository.UserCycleRepository;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,6 +53,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -80,6 +82,7 @@ public class LlmChatHandler implements ChatHandler {
     private final TaskRepository taskRepository;
     private final UserCycleRepository cycleRepository;
     private final CycleFocusRepository cycleFocusRepository;
+    private final ToolCallLogRepository toolCallLogRepository;
     private final MessageBuilder messageBuilder;
     private final ObjectMapper objectMapper;
     private final GeneralChatStrategy generalChatStrategy;
@@ -104,19 +107,30 @@ public class LlmChatHandler implements ChatHandler {
 
         if (chat.getEntityType() == ChatEntityType.CYCLE) {
             activeProposal = proposalRepository.findByChatAndStatus(
-                chat, IntentionProposalStatus.REFINING
+                chat,
+                IntentionProposalStatus.REFINING
             );
             if (activeProposal.isPresent()) {
                 strategy = intentionRefinementStrategy;
             } else {
-                UserCycle cycle = chat.getEntityId() != null
-                    ? cycleRepository.findByPidAndOwner(chat.getEntityId(), chat.getUser()).orElse(null)
-                    : null;
-                strategy = (cycle != null && cycle.getStatus() == CycleStatus.IN_REVIEW)
-                    ? buildRetroStrategy(cycle, chat)
-                    : buildCycleStrategy(chat);
+                UserCycle cycle =
+                    chat.getEntityId() != null
+                        ? cycleRepository
+                              .findByPidAndOwner(
+                                  chat.getEntityId(),
+                                  chat.getUser()
+                              )
+                              .orElse(null)
+                        : null;
+                strategy =
+                    cycle != null && cycle.getStatus() == CycleStatus.IN_REVIEW
+                        ? buildRetroStrategy(cycle, chat)
+                        : buildCycleStrategy(chat);
             }
-        } else if (chat.getEntityType() != null && chat.getEntityType() != ChatEntityType.GLOBAL) {
+        } else if (
+            chat.getEntityType() != null &&
+            chat.getEntityType() != ChatEntityType.GLOBAL
+        ) {
             strategy = buildEntityStrategy(chat);
         } else {
             activeProposal = proposalRepository.findByChatAndStatus(
@@ -199,7 +213,8 @@ public class LlmChatHandler implements ChatHandler {
         String relatedContext;
         switch (entityType) {
             case GOAL -> {
-                entityContext = goalRepository.findByPidAndOwner(chat.getEntityId(), chat.getUser())
+                entityContext = goalRepository
+                    .findByPidAndOwner(chat.getEntityId(), chat.getUser())
                     .map(goal -> {
                         StringBuilder sb = new StringBuilder();
                         appendIntentionSection(sb, goal.getIntention());
@@ -209,12 +224,14 @@ public class LlmChatHandler implements ChatHandler {
                         return sb.toString().strip();
                     })
                     .orElse("Goal: (not found)");
-                relatedContext = goalRepository.findByPidAndOwner(chat.getEntityId(), chat.getUser())
+                relatedContext = goalRepository
+                    .findByPidAndOwner(chat.getEntityId(), chat.getUser())
                     .map(goal -> buildTaskChatSummaries(chat.getUser(), goal))
                     .orElse("");
             }
             case TASK -> {
-                entityContext = taskRepository.findByPid(chat.getEntityId())
+                entityContext = taskRepository
+                    .findByPid(chat.getEntityId())
                     .map(task -> {
                         StringBuilder sb = new StringBuilder();
                         Goal goal = task.getGoal();
@@ -225,12 +242,15 @@ public class LlmChatHandler implements ChatHandler {
                         }
                         appendTaskSection(sb, task, true);
                         if (task.getRescheduledFrom() != null) {
-                            sb.append("  (continued from a previously partial task)\n");
+                            sb.append(
+                                "  (continued from a previously partial task)\n"
+                            );
                         }
                         return sb.toString().strip();
                     })
                     .orElse("Task: (not found)");
-                relatedContext = taskRepository.findByPid(chat.getEntityId())
+                relatedContext = taskRepository
+                    .findByPid(chat.getEntityId())
                     .flatMap(task -> Optional.ofNullable(task.getGoal()))
                     .map(goal -> buildGoalChatSummary(chat.getUser(), goal))
                     .orElse("");
@@ -240,32 +260,54 @@ public class LlmChatHandler implements ChatHandler {
                 relatedContext = "";
             }
         }
-        return new EntityChatStrategy(entityType, entityContext, relatedContext, defaultConnieModel);
+        return new EntityChatStrategy(
+            entityType,
+            entityContext,
+            relatedContext,
+            defaultConnieModel
+        );
     }
 
     private CycleRetroStrategy buildRetroStrategy(UserCycle cycle, Chat chat) {
         RetroAnalysis retroAnalysis = null;
         if (cycle.getRetroAnalysis() != null) {
             try {
-                retroAnalysis = objectMapper.readValue(cycle.getRetroAnalysis(), RetroAnalysis.class);
+                retroAnalysis = objectMapper.readValue(
+                    cycle.getRetroAnalysis(),
+                    RetroAnalysis.class
+                );
             } catch (Exception e) {
-                log.warn("buildRetroStrategy: could not parse retro analysis for cycle {}: {}",
-                    cycle.getPid(), e.getMessage());
+                log.warn(
+                    "buildRetroStrategy: could not parse retro analysis for cycle {}: {}",
+                    cycle.getPid(),
+                    e.getMessage()
+                );
             }
         }
 
-        List<Goal> focusGoals = cycleFocusRepository.findByCycleOrderByPositionAsc(cycle)
-            .stream().map(CycleFocus::getGoal).toList();
-        List<Task> carryOvers = focusGoals.isEmpty() ? List.of()
-            : taskRepository.findCarryOverCandidates(focusGoals, TaskFlexibility.FLEXIBLE);
+        List<Goal> focusGoals = cycleFocusRepository
+            .findByCycleOrderByPositionAsc(cycle)
+            .stream()
+            .map(CycleFocus::getGoal)
+            .toList();
+        List<Task> carryOvers = focusGoals.isEmpty()
+            ? List.of()
+            : taskRepository.findCarryOverCandidates(
+                  focusGoals,
+                  TaskFlexibility.FLEXIBLE
+              );
 
         String priorRetroSummary = cycleRepository
-            .findTopByOwnerAndStatusInOrderByEndDateDesc(chat.getUser(), List.of(CycleStatus.COMPLETED))
+            .findTopByOwnerAndStatusInOrderByEndDateDesc(
+                chat.getUser(),
+                List.of(CycleStatus.COMPLETED)
+            )
             .flatMap(prior -> {
                 if (prior.getRetroAnalysis() == null) return Optional.empty();
                 try {
                     RetroAnalysis priorAnalysis = objectMapper.readValue(
-                        prior.getRetroAnalysis(), RetroAnalysis.class
+                        prior.getRetroAnalysis(),
+                        RetroAnalysis.class
                     );
                     return Optional.ofNullable(priorAnalysis.summary());
                 } catch (Exception e) {
@@ -274,7 +316,13 @@ public class LlmChatHandler implements ChatHandler {
             })
             .orElse(null);
 
-        return new CycleRetroStrategy(cycle, retroAnalysis, carryOvers, priorRetroSummary, defaultConnieModel);
+        return new CycleRetroStrategy(
+            cycle,
+            retroAnalysis,
+            carryOvers,
+            priorRetroSummary,
+            defaultConnieModel
+        );
     }
 
     private CyclePlanningStrategy buildCycleStrategy(Chat chat) {
@@ -282,18 +330,35 @@ public class LlmChatHandler implements ChatHandler {
             .findByPidAndOwner(chat.getEntityId(), chat.getUser())
             .orElse(null);
         if (cycle == null) {
-            return new CyclePlanningStrategy(null, List.of(), List.of(), List.of(), defaultConnieModel);
+            return new CyclePlanningStrategy(
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                defaultConnieModel
+            );
         }
-        List<Goal> activeGoals = goalRepository.findByOwnerAndStatus(chat.getUser(), GoalStatus.ACTIVE);
-        List<CycleFocus> focuses = cycleFocusRepository.findByCycleOrderByPositionAsc(cycle);
+        List<Goal> activeGoals = goalRepository.findByOwnerAndStatus(
+            chat.getUser(),
+            GoalStatus.ACTIVE
+        );
+        List<CycleFocus> focuses =
+            cycleFocusRepository.findByCycleOrderByPositionAsc(cycle);
         List<Task> carryOvers = loadCarryOverCandidates(chat.getUser());
-        return new CyclePlanningStrategy(cycle, activeGoals, focuses, carryOvers, defaultConnieModel);
+        return new CyclePlanningStrategy(
+            cycle,
+            activeGoals,
+            focuses,
+            carryOvers,
+            defaultConnieModel
+        );
     }
 
     private List<Task> loadCarryOverCandidates(User user) {
         return cycleRepository
             .findTopByOwnerAndStatusInOrderByEndDateDesc(
-                user, List.of(CycleStatus.COMPLETED, CycleStatus.IN_REVIEW)
+                user,
+                List.of(CycleStatus.COMPLETED, CycleStatus.IN_REVIEW)
             )
             .map(prior -> {
                 List<Goal> priorGoals = cycleFocusRepository
@@ -302,54 +367,110 @@ public class LlmChatHandler implements ChatHandler {
                     .map(CycleFocus::getGoal)
                     .toList();
                 if (priorGoals.isEmpty()) return List.<Task>of();
-                return taskRepository.findCarryOverCandidates(priorGoals, TaskFlexibility.FLEXIBLE);
+                return taskRepository.findCarryOverCandidates(
+                    priorGoals,
+                    TaskFlexibility.FLEXIBLE
+                );
             })
             .orElse(List.of());
     }
 
     private String buildGoalChatSummary(User user, Goal goal) {
         return chatRepository
-            .findByUserAndEntityTypeAndEntityId(user, ChatEntityType.GOAL, goal.getPid())
+            .findByUserAndEntityTypeAndEntityId(
+                user,
+                ChatEntityType.GOAL,
+                goal.getPid()
+            )
             .map(goalChat -> {
                 List<ChatMessage> msgs = chatMessageRepository
-                    .findByChatOrderByCreatedAtDesc(goalChat, org.springframework.data.domain.PageRequest.of(0, 10))
+                    .findByChatOrderByCreatedAtDesc(
+                        goalChat,
+                        org.springframework.data.domain.PageRequest.of(0, 10)
+                    )
                     .stream()
                     .sorted(Comparator.comparing(ChatMessage::getCreatedAt))
                     .toList();
                 if (msgs.isEmpty()) return "";
                 StringBuilder sb = new StringBuilder("Recent goal chat:\n");
-                msgs.stream().filter(m -> m.getRawText() != null && !m.getRawText().isBlank())
-                    .forEach(m -> sb
-                        .append("  [").append(m.getSender() == MessageSender.USER ? "User" : "Connie").append("] ")
-                        .append(truncate(m.getRawText(), 120)).append("\n"));
+                msgs.stream()
+                    .filter(
+                        m -> m.getRawText() != null && !m.getRawText().isBlank()
+                    )
+                    .forEach(m ->
+                        sb
+                            .append("  [")
+                            .append(
+                                m.getSender() == MessageSender.USER
+                                    ? "User"
+                                    : "Connie"
+                            )
+                            .append("] ")
+                            .append(truncate(m.getRawText(), 120))
+                            .append("\n")
+                    );
                 return sb.toString().strip();
             })
             .orElse("");
     }
 
     private String buildTaskChatSummaries(User user, Goal goal) {
-        List<Task> tasks = taskRepository.findByGoalAndStatus(goal, TaskStatus.PENDING);
-        StringBuilder sb = new StringBuilder();
-        tasks.stream().limit(5).forEach(task ->
-            chatRepository
-                .findByUserAndEntityTypeAndEntityId(user, ChatEntityType.TASK, task.getPid())
-                .ifPresent(taskChat -> {
-                    List<ChatMessage> msgs = chatMessageRepository
-                        .findByChatOrderByCreatedAtDesc(taskChat, org.springframework.data.domain.PageRequest.of(0, 3))
-                        .stream()
-                        .sorted(Comparator.comparing(ChatMessage::getCreatedAt))
-                        .toList();
-                    List<ChatMessage> withText = msgs.stream()
-                        .filter(m -> m.getRawText() != null && !m.getRawText().isBlank())
-                        .toList();
-                    if (!withText.isEmpty()) {
-                        sb.append("Task \"").append(task.getTitle()).append("\":\n");
-                        withText.forEach(m -> sb
-                            .append("  [").append(m.getSender() == MessageSender.USER ? "User" : "Connie").append("] ")
-                            .append(truncate(m.getRawText(), 100)).append("\n"));
-                    }
-                })
+        List<Task> tasks = taskRepository.findByGoalAndStatus(
+            goal,
+            TaskStatus.PENDING
         );
+        StringBuilder sb = new StringBuilder();
+        tasks
+            .stream()
+            .limit(5)
+            .forEach(task ->
+                chatRepository
+                    .findByUserAndEntityTypeAndEntityId(
+                        user,
+                        ChatEntityType.TASK,
+                        task.getPid()
+                    )
+                    .ifPresent(taskChat -> {
+                        List<ChatMessage> msgs = chatMessageRepository
+                            .findByChatOrderByCreatedAtDesc(
+                                taskChat,
+                                org.springframework.data.domain.PageRequest.of(
+                                    0,
+                                    3
+                                )
+                            )
+                            .stream()
+                            .sorted(
+                                Comparator.comparing(ChatMessage::getCreatedAt)
+                            )
+                            .toList();
+                        List<ChatMessage> withText = msgs
+                            .stream()
+                            .filter(
+                                m ->
+                                    m.getRawText() != null &&
+                                    !m.getRawText().isBlank()
+                            )
+                            .toList();
+                        if (!withText.isEmpty()) {
+                            sb.append("Task \"")
+                                .append(task.getTitle())
+                                .append("\":\n");
+                            withText.forEach(m ->
+                                sb
+                                    .append("  [")
+                                    .append(
+                                        m.getSender() == MessageSender.USER
+                                            ? "User"
+                                            : "Connie"
+                                    )
+                                    .append("] ")
+                                    .append(truncate(m.getRawText(), 100))
+                                    .append("\n")
+                            );
+                        }
+                    })
+            );
         return sb.toString().strip();
     }
 
@@ -361,29 +482,49 @@ public class LlmChatHandler implements ChatHandler {
     private void appendIntentionSection(StringBuilder sb, Intention intention) {
         if (intention == null) return;
         sb.append("Intention: \"").append(intention.getTitle()).append("\"\n");
-        if (intention.getCompletionCriteria() != null && !intention.getCompletionCriteria().isBlank()) {
-            sb.append("  Success looks like: ").append(intention.getCompletionCriteria()).append("\n");
+        if (
+            intention.getCompletionCriteria() != null &&
+            !intention.getCompletionCriteria().isBlank()
+        ) {
+            sb.append("  Success looks like: ")
+                .append(intention.getCompletionCriteria())
+                .append("\n");
         }
         sb.append("  Status: ").append(intention.getStatus()).append("\n");
         sb.append("\n");
     }
 
-    private void appendGoalSection(StringBuilder sb, Goal goal, boolean isPrimary) {
+    private void appendGoalSection(
+        StringBuilder sb,
+        Goal goal,
+        boolean isPrimary
+    ) {
         String prefix = isPrimary ? "[PRIMARY] " : "";
-        sb.append(prefix).append("Goal: \"").append(goal.getTitle()).append("\"\n");
+        sb.append(prefix)
+            .append("Goal: \"")
+            .append(goal.getTitle())
+            .append("\"\n");
         sb.append("  Type: ").append(goal.getType()).append("\n");
         sb.append("  Status: ").append(goal.getStatus()).append("\n");
         if (goal.getEnergyLevel() != null) {
-            sb.append("  Energy level: ").append(goal.getEnergyLevel()).append("\n");
+            sb.append("  Energy level: ")
+                .append(goal.getEnergyLevel())
+                .append("\n");
         }
-        if (goal.getEstimatedTotalHours() != null && goal.getEstimatedTotalHours() > 0) {
-            sb.append("  Estimated total: ").append(goal.getEstimatedTotalHours()).append("h\n");
+        if (
+            goal.getEstimatedTotalHours() != null &&
+            goal.getEstimatedTotalHours() > 0
+        ) {
+            sb.append("  Estimated total: ")
+                .append(goal.getEstimatedTotalHours())
+                .append("h\n");
         }
         sb.append("\n");
     }
 
     private void appendMilestoneSection(StringBuilder sb, Goal goal) {
-        List<Milestone> milestones = milestoneRepository.findByGoalOrderByPosition(goal);
+        List<Milestone> milestones =
+            milestoneRepository.findByGoalOrderByPosition(goal);
         if (milestones.isEmpty()) return;
         sb.append("Milestones:\n");
         milestones.forEach(m -> {
@@ -398,31 +539,54 @@ public class LlmChatHandler implements ChatHandler {
     }
 
     private void appendPendingTasksSection(StringBuilder sb, Goal goal) {
-        List<Task> pending = taskRepository.findByGoalAndStatus(goal, TaskStatus.PENDING);
+        List<Task> pending = taskRepository.findByGoalAndStatus(
+            goal,
+            TaskStatus.PENDING
+        );
         if (pending.isEmpty()) return;
         sb.append("Pending tasks (").append(pending.size()).append("):\n");
-        pending.stream().limit(5).forEach(t -> appendTaskSection(sb, t, false));
+        pending
+            .stream()
+            .limit(5)
+            .forEach(t -> appendTaskSection(sb, t, false));
         if (pending.size() > 5) {
-            sb.append("  ... and ").append(pending.size() - 5).append(" more\n");
+            sb.append("  ... and ")
+                .append(pending.size() - 5)
+                .append(" more\n");
         }
         sb.append("\n");
     }
 
-    private void appendTaskSection(StringBuilder sb, Task task, boolean isPrimary) {
+    private void appendTaskSection(
+        StringBuilder sb,
+        Task task,
+        boolean isPrimary
+    ) {
         String prefix = isPrimary ? "[PRIMARY] " : "  - ";
-        sb.append(prefix).append("Task: \"").append(task.getTitle()).append("\"\n");
+        sb.append(prefix)
+            .append("Task: \"")
+            .append(task.getTitle())
+            .append("\"\n");
         if (isPrimary) {
             sb.append("  Status: ").append(task.getStatus()).append("\n");
             if (task.getDurationMinutes() != null) {
-                sb.append("  Duration: ").append(task.getDurationMinutes()).append(" minutes\n");
+                sb.append("  Duration: ")
+                    .append(task.getDurationMinutes())
+                    .append(" minutes\n");
             }
-            sb.append("  Flexibility: ").append(task.getFlexibility()).append("\n");
+            sb.append("  Flexibility: ")
+                .append(task.getFlexibility())
+                .append("\n");
             if (task.getFixedTime() != null) {
-                sb.append("  Fixed time: ").append(task.getFixedTime()).append("\n");
+                sb.append("  Fixed time: ")
+                    .append(task.getFixedTime())
+                    .append("\n");
             }
         } else {
             if (task.getDurationMinutes() != null) {
-                sb.append(" (").append(task.getDurationMinutes()).append(" min)");
+                sb.append(" (")
+                    .append(task.getDurationMinutes())
+                    .append(" min)");
             }
             sb.append("\n");
         }
@@ -509,7 +673,67 @@ public class LlmChatHandler implements ChatHandler {
     ) {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(strategy.systemPrompt(ctx)));
+
+        // Anchor for tool log fetch: proposal start for intention refinement (so captureIntention
+        // logs — created before the first CONNIE message — are not missed), otherwise the oldest
+        // message in the history window.
+        java.time.Instant toolLogStart = ctx.activeProposal()
+            .map(com.rail.api.entity.IntentionProposal::getCreatedAt)
+            .orElseGet(() -> ctx.recentHistory().isEmpty()
+                ? java.time.Instant.now()
+                : ctx.recentHistory().get(0).getCreatedAt());
+        var toolLogs = toolCallLogRepository
+            .findByChatAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(ctx.chat(), toolLogStart);
+        int toolIdx = 0;
+
         for (ChatMessage msg : ctx.recentHistory()) {
+            // Before each CONNIE message, inject tool call/response pairs whose timestamps
+            // fall before this message — these are the tool calls made during that turn.
+            if (msg.getSender() == MessageSender.CONNIE) {
+                while (
+                    toolIdx < toolLogs.size() &&
+                    toolLogs
+                        .get(toolIdx)
+                        .getCreatedAt()
+                        .isBefore(msg.getCreatedAt())
+                ) {
+                    var log = toolLogs.get(toolIdx++);
+
+                    messages.add(
+                        AssistantMessage.builder()
+                            .toolCalls(
+                                List.of(
+                                    new AssistantMessage.ToolCall(
+                                        log.getCallId(),
+                                        "function",
+                                        log.getToolName(),
+                                        log.getArguments() != null
+                                            ? log.getArguments()
+                                            : "{}"
+                                    )
+                                )
+                            )
+                            .build()
+                    );
+
+                    messages.add(
+                        ToolResponseMessage.builder()
+                            .responses(
+                                List.of(
+                                    new ToolResponseMessage.ToolResponse(
+                                        log.getCallId(),
+                                        log.getToolName(),
+                                        log.getResult() != null
+                                            ? log.getResult()
+                                            : ""
+                                    )
+                                )
+                            )
+                            .build()
+                    );
+                }
+            }
+
             String text = msg.getRawText() != null ? msg.getRawText() : "";
             if (msg.getSender() == MessageSender.USER) {
                 messages.add(new UserMessage(text));
@@ -517,6 +741,7 @@ public class LlmChatHandler implements ChatHandler {
                 messages.add(new AssistantMessage(text));
             }
         }
+
         messages.add(new UserMessage(ctx.currentInput()));
         return messages;
     }
@@ -552,13 +777,36 @@ public class LlmChatHandler implements ChatHandler {
             sb.append("attempt  : ").append(attempt).append("\n");
             sb.append("time     : ").append(LocalDateTime.now()).append("\n\n");
             for (Message msg : messages) {
-                String role = switch (msg) {
-                    case SystemMessage m -> "system";
-                    case AssistantMessage m -> "assistant";
-                    default -> "user";
-                };
-                sb.append("=== ").append(role.toUpperCase()).append(" ===\n");
-                sb.append(msg.getText()).append("\n\n");
+                switch (msg) {
+                    case SystemMessage m -> {
+                        sb.append("=== SYSTEM ===\n");
+                        sb.append(m.getText()).append("\n\n");
+                    }
+                    case ToolResponseMessage m -> {
+                        sb.append("=== TOOL RESULT ===\n");
+                        m.getResponses().forEach(r ->
+                            sb.append("[").append(r.name()).append(" id=").append(r.id()).append("]\n")
+                              .append(r.responseData()).append("\n")
+                        );
+                        sb.append("\n");
+                    }
+                    case AssistantMessage m when !m.getToolCalls().isEmpty() -> {
+                        sb.append("=== ASSISTANT (tool calls) ===\n");
+                        m.getToolCalls().forEach(tc ->
+                            sb.append("[").append(tc.name()).append(" id=").append(tc.id()).append("]\n")
+                              .append(tc.arguments()).append("\n")
+                        );
+                        sb.append("\n");
+                    }
+                    case AssistantMessage m -> {
+                        sb.append("=== ASSISTANT ===\n");
+                        sb.append(m.getText()).append("\n\n");
+                    }
+                    default -> {
+                        sb.append("=== USER ===\n");
+                        sb.append(msg.getText()).append("\n\n");
+                    }
+                }
             }
             sb.append("=== RESPONSE ===\n");
             sb.append(rawOutput).append("\n");
